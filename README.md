@@ -59,7 +59,7 @@ Estimate and generate a larger AI archive through OpenRouter:
 
 ```bash
 AI_API_KEY=sk-or-... bun run archive:estimate-ai
-AI_API_KEY=sk-or-... bun run archive:generate-ai -- --count=87600 --batch-size=25
+AI_API_KEY=sk-or-... bun run archive:generate-ai -- --count=87600 --batch-size=25 --language=all
 bun run archive:schedule
 ```
 
@@ -83,11 +83,28 @@ Useful one-off generation environment variables:
 Useful archive generation environment variables:
 
 - `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1`
-- `AI_MODEL` defaults to `openai/gpt-5.4-nano`
-- `AI_MODEL_ID` is stored as internal generation metadata only
+- `AI_MODEL_POOL` defaults to a balanced OpenRouter pool across OpenAI, Anthropic, Google, DeepSeek, xAI, Qwen, Mistral, and Meta
+- `AI_MODEL` or `--model` can force a single model for a run
+- `AI_MODEL_ID` can override the stored model id, but by default each row stores the actual response model
 - `AI_ARCHIVE_CATEGORY` can be `all`, `tech`, `politics`, `sports`, `celebrities`, or `random`
 - `AI_ARCHIVE_LANGUAGE` can be `all`, `en`, `es`, `fr`, `pt`, or `de`; `all` rotates languages
 - `AI_BATCH_SIZE` defaults to `25`
+
+The default balanced pool is:
+
+```text
+openai/gpt-5.4-mini,
+anthropic/claude-haiku-4.5,
+google/gemini-3-flash-preview,
+deepseek/deepseek-v3.2,
+x-ai/grok-4.1-fast,
+qwen/qwen3.6-plus,
+mistralai/mistral-large-2512,
+meta-llama/llama-4-maverick
+```
+
+Multi-model archive runs continue past a failed provider by default. Use `--fail-fast` when you want the first model/provider error to stop the run.
+Use `--start-index=N` to resume a long generation job from a deterministic slot without replaying earlier batches.
 
 Scheduling defaults to every supported language:
 

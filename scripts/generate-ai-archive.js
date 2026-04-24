@@ -16,6 +16,7 @@ const args = new Map(
 
 const years = numberArg("years", "AI_ARCHIVE_YEARS", 10);
 const count = numberArg("count", "AI_ARCHIVE_COUNT", 24 * 365 * years);
+const startIndex = numberArg("start-index", "AI_ARCHIVE_START_INDEX", 0);
 const batchSize = numberArg("batch-size", "AI_BATCH_SIZE", 25);
 const retries = numberArg("retries", "AI_RETRIES", 3);
 const requestedCategory = stringArg("category", "AI_ARCHIVE_CATEGORY", "all");
@@ -23,11 +24,25 @@ const requestedLanguage = stringArg("language", "AI_ARCHIVE_LANGUAGE", "all");
 const dbPath = process.env.DATABASE_PATH ?? path.join(dataDir, "guess-the-tweeter.sqlite");
 const apiKey = process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? "";
 const baseUrl = (process.env.AI_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
-const sourceModel = stringArg("model", "AI_MODEL", "openai/gpt-5.4-nano");
-const modelId = stringArg("model-id", "AI_MODEL_ID", sourceModel);
+const defaultModelPool = [
+  "openai/gpt-5.4-mini",
+  "anthropic/claude-haiku-4.5",
+  "google/gemini-3-flash-preview",
+  "deepseek/deepseek-v3.2",
+  "x-ai/grok-4.1-fast",
+  "qwen/qwen3.6-plus",
+  "mistralai/mistral-large-2512",
+  "meta-llama/llama-4-maverick",
+];
+const requestedModel = stringArg("model", "AI_MODEL", "");
+const modelPool = parseModelPool(
+  stringArg("models", "AI_MODEL_POOL", requestedModel || defaultModelPool.join(",")),
+);
+const modelIdOverride = stringArg("model-id", "AI_MODEL_ID", "");
 const promptVersion = stringArg("prompt-version", "AI_PROMPT_VERSION", "ai-archive-v1");
 const dryRun = args.has("dry-run");
 const estimateOnly = args.has("estimate");
+const continueOnModelError = args.has("continue-on-error") || (modelPool.length > 1 && !args.has("fail-fast"));
 const inputPricePerMillion = numberArg("input-price", "AI_INPUT_PRICE_PER_1M", 0.2);
 const outputPricePerMillion = numberArg("output-price", "AI_OUTPUT_PRICE_PER_1M", 1.25);
 
@@ -41,6 +56,10 @@ if (requestedLanguage !== "all" && !LANGUAGES_BY_ID.has(requestedLanguage)) {
 
 if (!Number.isInteger(count) || count < 1) {
   throw new Error("--count must be a positive integer.");
+}
+
+if (!Number.isInteger(startIndex) || startIndex < 0) {
+  throw new Error("--start-index must be a non-negative integer.");
 }
 
 if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 50) {
@@ -205,31 +224,56 @@ const insertMany = db.transaction((rows) => {
 let inserted = 0;
 let attempted = 0;
 const startedAt = Date.now();
+const modelStats = new Map(modelPool.map((model) => [model, { attempted: 0, failed: 0, inserted: 0 }]));
 
-for (let offset = 0; offset < count; offset += batchSize) {
-  const size = Math.min(batchSize, count - offset);
+const endIndex = startIndex + count;
+
+for (let offset = startIndex; offset < endIndex; offset += batchSize) {
+  const size = Math.min(batchSize, endIndex - offset);
+  const selectedModel = pickModel(offset);
   const batch = buildBatch(offset, size);
-  const result = await generateBatchWithRetry(batch);
+  const stats = modelStats.get(selectedModel) ?? { attempted: 0, failed: 0, inserted: 0 };
+  let result;
+
+  try {
+    result = await generateBatchWithRetry(batch, selectedModel);
+  } catch (error) {
+    stats.failed += batch.length;
+    modelStats.set(selectedModel, stats);
+
+    if (!continueOnModelError) {
+      throw error;
+    }
+
+    attempted += batch.length;
+    console.warn(
+      `batch ${offset + batch.length - startIndex}/${count}: model ${selectedModel} failed, continuing: ${error.message}`,
+    );
+    continue;
+  }
+
   const now = Date.now();
   const rows = result.posts.map((post, postIndex) => {
     const item = batch[postIndex];
     const text = normalizeText(post.text);
-    const id = `ai:${hashText(`${sourceModel}:${item.author.id}:${text}`)}`;
+    const id = `ai:${hashText(`${result.sourceModel}:${item.author.id}:${text}`)}`;
 
     return [
       id,
       item.author.category,
       item.author.id,
-      modelId,
+      modelIdOverride || result.modelId,
       text,
       item.language.id,
-      sourceModel,
+      result.sourceModel,
       promptVersion,
       "approved",
       JSON.stringify({
         slot: item.slot,
         batchStart: offset,
         dryRun,
+        requestedModel: selectedModel,
+        responseModel: result.responseModel,
         usage: result.usage,
       }),
       now + postIndex,
@@ -237,15 +281,23 @@ for (let offset = 0; offset < count; offset += batchSize) {
     ];
   });
 
-  inserted += insertMany(rows);
+  const insertedForBatch = insertMany(rows);
+  inserted += insertedForBatch;
   attempted += rows.length;
-  console.log(`batch ${offset + rows.length}/${count}: inserted ${inserted}, attempted ${attempted}`);
+  stats.attempted += rows.length;
+  stats.inserted += insertedForBatch;
+  modelStats.set(selectedModel, stats);
+  console.log(
+    `batch ${offset + rows.length - startIndex}/${count}: model ${selectedModel}, inserted ${inserted}, attempted ${attempted}`,
+  );
 }
 
 console.log(`AI archive candidates requested: ${count}`);
 console.log(`Inserted new rows: ${inserted}`);
-console.log(`Source model: ${sourceModel}`);
-console.log(`Exposed model id: ${modelId}`);
+console.log(`Model pool: ${modelPool.join(", ")}`);
+for (const [model, stats] of modelStats) {
+  console.log(`Model ${model}: inserted ${stats.inserted}, attempted ${stats.attempted}, failed ${stats.failed}`);
+}
 console.log(`Elapsed seconds: ${Math.round((Date.now() - startedAt) / 1000)}`);
 console.log(`Database: ${dbPath}`);
 
@@ -261,6 +313,23 @@ function numberArg(name, envName, fallback) {
   }
 
   return parsed;
+}
+
+function parseModelPool(value) {
+  const models = String(value)
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+
+  if (!models.length) {
+    throw new Error("Model pool is empty. Set --model, --models, AI_MODEL, or AI_MODEL_POOL.");
+  }
+
+  return [...new Set(models)];
+}
+
+function pickModel(offset) {
+  return modelPool[Math.floor(offset / batchSize) % modelPool.length];
 }
 
 function buildBatch(offset, size) {
@@ -335,12 +404,12 @@ function buildMessages(batch) {
   ];
 }
 
-async function generateBatchWithRetry(batch) {
+async function generateBatchWithRetry(batch, selectedModel) {
   let lastError;
 
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
-      return await generateBatch(batch);
+      return await generateBatch(batch, selectedModel);
     } catch (error) {
       lastError = error;
       if (attempt === retries) {
@@ -356,13 +425,16 @@ async function generateBatchWithRetry(batch) {
   throw lastError;
 }
 
-async function generateBatch(batch) {
+async function generateBatch(batch, selectedModel) {
   if (dryRun) {
     return {
       posts: batch.map((item) => ({
         slot: item.slot,
         text: dryRunPost(item),
       })),
+      modelId: modelIdOverride || selectedModel,
+      sourceModel: selectedModel,
+      responseModel: selectedModel,
       usage: {
         dryRun: true,
       },
@@ -382,7 +454,7 @@ async function generateBatch(batch) {
         : {}),
     },
     body: JSON.stringify({
-      model: sourceModel,
+      model: selectedModel,
       messages: buildMessages(batch),
       response_format: { type: "json_object" },
       temperature: 0.92,
@@ -399,9 +471,13 @@ async function generateBatch(batch) {
   const content = raw.choices?.[0]?.message?.content ?? "";
   const parsed = parseJsonContent(content);
   const posts = validatePosts(parsed.posts, batch);
+  const responseModel = raw.model ?? selectedModel;
 
   return {
     posts,
+    modelId: modelIdOverride || responseModel,
+    sourceModel: responseModel,
+    responseModel,
     usage: raw.usage ?? null,
   };
 }
@@ -486,11 +562,11 @@ function containsForbiddenText(value, author) {
   const exactBlocked = [
     author.name,
     author.handle,
-    modelId,
-    sourceModel,
+    modelIdOverride,
+    ...modelPool,
     "x.com",
     "twitter",
-  ];
+  ].filter(Boolean);
   const wordBlocked = ["openai", "deepseek", "anthropic", "google", "meta"];
 
   return (
@@ -562,8 +638,10 @@ function estimateRun() {
 
 function printEstimate(estimate) {
   console.log(`Posts: ${estimate.count}`);
+  console.log(`Start index: ${startIndex}`);
   console.log(`Batch size: ${estimate.batchSize}`);
   console.log(`Language: ${requestedLanguage}`);
+  console.log(`Model pool: ${modelPool.join(", ")}`);
   console.log(`API calls: ${estimate.batches}`);
   console.log(`Estimated input tokens: ${estimate.inputTokens.toLocaleString()}`);
   console.log(`Estimated output tokens: ${estimate.outputTokens.toLocaleString()}`);

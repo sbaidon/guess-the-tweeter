@@ -39,7 +39,7 @@ For a batched AI archive:
 
 ```bash
 AI_API_KEY=sk-or-... bun run archive:estimate-ai
-AI_API_KEY=sk-or-... bun run archive:generate-ai -- --count=87600 --batch-size=25
+AI_API_KEY=sk-or-... bun run archive:generate-ai -- --count=87600 --batch-size=25 --language=all
 bun run archive:schedule
 ```
 
@@ -70,6 +70,7 @@ Environment variables:
 
 - `AI_BASE_URL`
 - `AI_API_KEY`
+- `AI_MODEL_POOL`
 - `AI_MODEL`
 - `AI_MODEL_ID`
 - `AI_ARCHIVE_LANGUAGE`
@@ -77,9 +78,12 @@ Environment variables:
 Defaults for the batched archive generator:
 
 - `AI_BASE_URL=https://openrouter.ai/api/v1`
-- `AI_MODEL=openai/gpt-5.4-nano`
-- `AI_MODEL_ID=openai/gpt-5.4-nano`
+- `AI_MODEL_POOL` rotates a balanced OpenRouter pool across OpenAI, Anthropic, Google, DeepSeek, xAI, Qwen, Mistral, and Meta.
+- `AI_MODEL` or `--model` forces a single model when you want a controlled run.
+- `AI_MODEL_ID` is optional; by default each row stores the actual model returned by the API.
 - `AI_ARCHIVE_LANGUAGE=all` rotates English, Spanish, French, Portuguese, and German.
+- Multi-model runs continue past provider/model failures by default; pass `--fail-fast` for stricter batch jobs.
+- Use `--start-index=N` or `AI_ARCHIVE_START_INDEX=N` to resume deterministic batches after an interruption.
 
 For direct DeepSeek one-off generation, `scripts/generate-posts.js` still defaults to:
 
