@@ -1,5 +1,5 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { GameBoard } from "../components/GameBoard";
+import { GameBoard } from "../components/GameBoard.tsrx";
 import { CATEGORY_META } from "../gameData";
 
 export component PlayPage() {
@@ -14,7 +14,7 @@ export component PlayPage() {
     }}
   >
     <section class="hero hero--play">
-      <div class="hero__eyebrow">{`LIVE ROUND / ${meta.name.toUpperCase()} / PARODY DETECTOR`}</div>
+      <div class="hero__eyebrow">{`HOURLY ROUND / ${meta.name.toUpperCase()} / LIVE PICKS`}</div>
       <div class="hero__grid">
         <div class="hero__copy">
           <p class="hero__kicker">{meta.name}</p>
@@ -27,8 +27,8 @@ export component PlayPage() {
           <p class="panel__text">{`/play/${category}`}</p>
           <div class="panel__chips">
             <span>{"4 choices"}</span>
-            <span>{"Score streaks"}</span>
-            <span>{"Reset anytime"}</span>
+            <span>{"Shared round"}</span>
+            <span>{"Post-reveal picks"}</span>
           </div>
           <div class="hero__actions hero__actions--stacked">
             <Link className="button button--ghost" to="/">

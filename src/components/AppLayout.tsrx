@@ -26,6 +26,11 @@ const navigationItems = [
     to: "/play/$category",
     params: { category: "sports" },
   },
+  {
+    label: "Host",
+    to: "/host/$category",
+    params: { category: "all" },
+  },
 ];
 
 export component AppLayout({ children }) {

@@ -1,6 +1,6 @@
 # Guess the Tweeter
 
-A React + Vite parody trivia game using TanStack Router, with selective TSRX components for the routed layout and landing pages. Players land on a home page, pick a category route, and then guess which fake internet persona wrote each post.
+A React + Vite parody trivia game using TanStack Router, with selective TSRX components for the routed layout and landing pages. Players join shared hourly rounds, submit picks, and see the crowd distribution after reveal.
 
 ## Current shape
 
@@ -8,8 +8,10 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 - TSRX wired into the Vite build for incremental adoption
 - Home page plus `/play/:category` routes
 - Categories for mixed feed, tech, politics, and sports
-- 24 parody prompts with multiple-choice rounds
-- Score, streak, accuracy, and deck tracking
+- Shared hourly rounds backed by SQLite
+- WebSocket updates for live pick counts and reveals
+- Author guesses plus a bonus round for guessing which model generated the parody
+- Host controls at `/host/:category` for reveal/reset/new round
 - MIT-licensed open-source setup
 
 ## Run it
@@ -21,11 +23,16 @@ npm run dev
 
 Recommended runtime: Node `20.19.0` or newer. This repo includes `.tool-versions` for `asdf`.
 
+The dev command starts both the Node server on `8787` and Vite on `5173`. Vite proxies `/api` and `/ws` to the server.
+
 Build for production:
 
 ```bash
 npm run build
+npm start
 ```
+
+Production serves the built frontend and API from the same Node process. SQLite data is written to `data/guess-the-tweeter.sqlite` by default.
 
 ## Content generation direction
 

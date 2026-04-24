@@ -613,6 +613,13 @@ body::after {
     linear-gradient(135deg, rgba(255, 116, 69, 0.12), transparent 60%);
 }
 
+.choice-button[data-state="selected"] {
+  border-color: var(--active-accent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    linear-gradient(135deg, var(--active-accent-soft), transparent 60%);
+}
+
 .choice-button[data-disabled="true"] {
   opacity: 0.72;
   cursor: default;
@@ -650,6 +657,181 @@ body::after {
   color: var(--text);
   font-size: 0.95rem;
   letter-spacing: 0.04em;
+}
+
+.bonus-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    linear-gradient(135deg, var(--active-accent-soft), transparent 70%);
+}
+
+.bonus-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.bonus-panel__title {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  font-size: 1.5rem;
+}
+
+.bonus-panel__value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--active-accent);
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.choice-grid--bonus {
+  margin-top: 16px;
+}
+
+.choice-button--model {
+  min-height: 132px;
+}
+
+.bonus-feedback {
+  min-height: 92px;
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.bonus-feedback.is-hidden {
+  visibility: hidden;
+}
+
+.bonus-feedback.is-correct {
+  border-color: rgba(72, 214, 155, 0.4);
+  background: rgba(72, 214, 155, 0.09);
+}
+
+.bonus-feedback.is-incorrect {
+  border-color: rgba(255, 116, 69, 0.4);
+  background: rgba(255, 116, 69, 0.09);
+}
+
+.results-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.results-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.results-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.result-row {
+  display: grid;
+  gap: 8px;
+}
+
+.result-row__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.result-row__name {
+  font-weight: 700;
+}
+
+.result-row__count {
+  color: var(--muted);
+}
+
+.result-row__track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.result-row__bar {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.result-row__bar[data-correct="true"] {
+  background: var(--active-accent);
+}
+
+.host-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 22px;
+}
+
+.host-stage {
+  min-height: 620px;
+}
+
+.host-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.host-controls {
+  align-self: start;
+}
+
+.field-label {
+  display: block;
+  margin-top: 18px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+}
+
+.field-input {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 8px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+}
+
+.host-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .stage__actions {
@@ -797,6 +979,9 @@ body::after {
   .choice-grid,
   .scoreboard,
   .session-grid,
+  .results-panel__grid,
+  .host-layout,
+  .host-stats,
   .launch-grid,
   .feature-strip {
     grid-template-columns: minmax(0, 1fr);
@@ -824,6 +1009,7 @@ body::after {
 
   .stage__meta,
   .stage__actions,
+  .bonus-panel__header,
   .roster-item__head,
   .launch-card__footer {
     flex-direction: column;

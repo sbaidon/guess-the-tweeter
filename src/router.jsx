@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppLayout.tsrx";
 import { isCategoryKey } from "./gameData";
+import { HostPage } from "./routes/HostPage.tsrx";
 import { HomePage } from "./routes/HomePage.tsrx";
 import { PlayPage } from "./routes/PlayPage.tsrx";
 
@@ -38,7 +39,21 @@ const playRoute = createRoute({
   component: PlayPage,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, playRoute]);
+const hostRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/host/$category",
+  beforeLoad: ({ params }) => {
+    if (!isCategoryKey(params.category)) {
+      throw redirect({
+        to: "/host/$category",
+        params: { category: "all" },
+      });
+    }
+  },
+  component: HostPage,
+});
+
+const routeTree = rootRoute.addChildren([homeRoute, playRoute, hostRoute]);
 
 export const router = createRouter({
   routeTree,
