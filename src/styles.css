@@ -454,6 +454,34 @@ a {
   color: var(--muted);
 }
 
+.slip-action {
+  width: 100%;
+  margin-top: 20px;
+  padding: 18px 14px;
+  border: 0;
+  background: var(--red);
+  color: var(--paper);
+  cursor: pointer;
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  text-align: center;
+  font-size: 1.4rem;
+}
+
+.slip-action:disabled {
+  border: 1px dashed var(--muted);
+  background: transparent;
+  color: var(--muted);
+  cursor: default;
+  font-family: "JetBrains Mono", monospace;
+  font-style: normal;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
 .bonus-card,
 .results-card {
   margin-top: 22px;

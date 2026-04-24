@@ -71,6 +71,8 @@ export component GameBoard({ category }) {
   const [round, setRound] = useState(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [draftAuthorId, setDraftAuthorId] = useState(null);
+  const [draftModelId, setDraftModelId] = useState(null);
   const postMeta = round ? CATEGORY_META[round.post.category] : CATEGORY_META.all;
   const selectedAuthorId = round?.submission?.authorId ?? null;
   const selectedModelId = round?.submission?.modelId ?? null;
@@ -95,6 +97,8 @@ export component GameBoard({ category }) {
     fetchCurrentRound(category, clientId, controller.signal)
       .then((nextRound) => {
         setRound(nextRound);
+        setDraftAuthorId(null);
+        setDraftModelId(null);
         setError("");
       })
       .catch((nextError) => {
@@ -116,6 +120,8 @@ export component GameBoard({ category }) {
         fetchCurrentRound(category, clientId)
           .then((nextRound) => {
             setRound(nextRound);
+            setDraftAuthorId(null);
+            setDraftModelId(null);
             setError("");
           })
           .catch((nextError) => setError(nextError.message));
@@ -138,6 +144,8 @@ export component GameBoard({ category }) {
         ...payload,
       });
       setRound(nextRound);
+      setDraftAuthorId(null);
+      setDraftModelId(null);
       setError("");
     } catch (nextError) {
       setError(nextError.message);
@@ -209,7 +217,7 @@ export component GameBoard({ category }) {
           const dataState = getChoiceState(
             author.id,
             round.answer?.author.id,
-            selectedAuthorId,
+            selectedAuthorId ?? draftAuthorId,
             round.status,
           );
 
@@ -219,7 +227,7 @@ export component GameBoard({ category }) {
             data-state={dataState}
             disabled={!isOpen || hasAuthorPick || pending}
             type="button"
-            onClick={() => submitPick({ authorId: author.id })}
+            onClick={() => setDraftAuthorId(author.id)}
           >
             <span class="choice__index">{String(index + 1).padStart(2, "0")}</span>
             <span class="choice__main">
@@ -229,6 +237,17 @@ export component GameBoard({ category }) {
           </button>
         }
       </div>
+
+      if (!hasAuthorPick && isOpen) {
+        <button
+          class="slip-action"
+          disabled={!draftAuthorId || pending}
+          type="button"
+          onClick={() => submitPick({ authorId: draftAuthorId })}
+        >
+          {draftAuthorId ? "Place slip" : "Pick a tweeter"}
+        </button>
+      }
 
       if (hasAuthorPick || !isOpen) {
         <div
@@ -258,7 +277,7 @@ export component GameBoard({ category }) {
               const dataState = getChoiceState(
                 model.id,
                 round.answer?.model.id,
-                selectedModelId,
+                selectedModelId ?? draftModelId,
                 round.status,
               );
 
@@ -268,7 +287,7 @@ export component GameBoard({ category }) {
                 data-state={dataState}
                 disabled={!isOpen || !hasAuthorPick || hasModelPick || pending}
                 type="button"
-                onClick={() => submitPick({ modelId: model.id })}
+                onClick={() => setDraftModelId(model.id)}
               >
                 <span class="choice__index">{`M${index + 1}`}</span>
                 <span class="choice__main">
@@ -277,6 +296,17 @@ export component GameBoard({ category }) {
               </button>
             }
           </div>
+
+          if (!hasModelPick && hasAuthorPick && isOpen) {
+            <button
+              class="slip-action"
+              disabled={!draftModelId || pending}
+              type="button"
+              onClick={() => submitPick({ modelId: draftModelId })}
+            >
+              {draftModelId ? "Submit bonus" : "Pick a model"}
+            </button>
+          }
 
           if (hasModelPick || isRevealed) {
             <div
