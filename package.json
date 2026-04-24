@@ -20,6 +20,7 @@
     "archive:schedule": "bun scripts/schedule-rounds.js",
     "db:backup": "bun scripts/backup-sqlite.js",
     "db:restore": "bun scripts/restore-sqlite.js",
+    "load:test": "bun scripts/load-test.js",
     "build": "bunx --bun vite build",
     "preview": "bunx --bun vite preview"
   },

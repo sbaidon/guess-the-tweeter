@@ -47,6 +47,7 @@ Operational commands:
 bun run typecheck:server
 bun run db:backup
 bun run db:restore -- --file=/path/to/backup.sqlite --force
+bun run load:test -- --url=http://127.0.0.1:8787 --ws-clients=250 --votes=1000 --duration=60
 ```
 
 ## Content generation direction

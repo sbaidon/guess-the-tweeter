@@ -146,6 +146,22 @@ sudo systemctl restart guess-the-tweeter
 curl -fsS http://127.0.0.1:8787/healthz
 ```
 
+## Load Testing
+
+Run the built-in mixed load test against localhost first:
+
+```bash
+bun run load:test -- --url=http://127.0.0.1:8787 --ws-clients=250 --votes=1000 --duration=60 --concurrency=50
+```
+
+Then point the same test at the public URL:
+
+```bash
+bun run load:test -- --url=https://YOUR_DOMAIN --ws-clients=1000 --votes=5000 --duration=120 --concurrency=100
+```
+
+The test opens WebSockets across language rooms, submits unique votes, waits for `round:snapshot` messages, and reports HTTP vote latency plus snapshot lag. Use multiple load-generator machines for large tests; one laptop cannot simulate huge socket counts reliably.
+
 ## Current Scaling Boundary
 
 One VM is fine for early traffic. The first likely pressure point is WebSocket fanout, not AI cost. If one process stops being enough, split live rooms across instances and add Redis pub/sub or another shared broadcast layer.
