@@ -47,6 +47,46 @@ function formatContestCountdown(value) {
   return `Ends in ${hours}h`;
 }
 
+function formatDuration(ms) {
+  const remainingSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function getPhaseCopy(round, now) {
+  if (!round) {
+    return {
+      label: "Loading",
+      value: "--:--",
+      detail: "Syncing the live room.",
+    };
+  }
+
+  if (round.status === "open") {
+    return {
+      label: "Voting closes in",
+      value: formatDuration(new Date(round.locksAt).getTime() - now),
+      detail: `Picks lock at ${formatClock(round.locksAt)}.`,
+    };
+  }
+
+  if (round.status === "locked") {
+    return {
+      label: "Answer drops in",
+      value: formatDuration(new Date(round.revealsAt).getTime() - now),
+      detail: `Crowd ledger opens at ${formatClock(round.revealsAt)}.`,
+    };
+  }
+
+  return {
+    label: "Answer live",
+    value: "00:00",
+    detail: `${round.results?.winnerCount ?? 0} winners from ${round.results?.authorTotal ?? 0} slips.`,
+  };
+}
+
 function normalizeGuess(value) {
   return value.trim().replace(/^@/, "").toLowerCase();
 }
@@ -93,7 +133,9 @@ export component GameBoard({ category }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [handleGuess, setHandleGuess] = useState("");
+  const [now, setNow] = useState(Date.now());
   const postMeta = round ? CATEGORY_META[round.post.category] : CATEGORY_META.all;
+  const phaseCopy = getPhaseCopy(round, now);
   const selectedAuthorId = round?.submission?.authorId ?? null;
   const matchedAuthor = round ? matchAuthorGuess(handleGuess, round.authorChoices) : null;
   const hasAuthorPick = Boolean(selectedAuthorId);
@@ -108,6 +150,31 @@ export component GameBoard({ category }) {
     : hasAuthorPick || round?.status === "locked"
       ? "Placed"
       : "";
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!round || round.status === "revealed") {
+      return;
+    }
+
+    const target = new Date(round.status === "open" ? round.locksAt : round.revealsAt).getTime();
+    const timeout = window.setTimeout(() => {
+      fetchCurrentRound(category, clientId)
+        .then((nextRound) => {
+          setRound(nextRound);
+          setHandleGuess("");
+          setError("");
+        })
+        .catch((nextError) => setError(nextError.message));
+    }, Math.max(0, target - Date.now()) + 800);
+
+    return () => window.clearTimeout(timeout);
+  }, [category, clientId, round?.id, round?.locksAt, round?.revealsAt, round?.status]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -199,6 +266,12 @@ export component GameBoard({ category }) {
           ? `${formatContestCountdown(round.contest?.endsAt)} · ${round.contest?.roundNumber ?? "?"}/${round.contest?.totalRounds ?? "?"}`
           : "87,600 round archive"}
       </div>
+
+      <div class="phase-meter" data-phase={round?.status ?? "loading"}>
+        <span>{phaseCopy.label}</span>
+        <strong>{phaseCopy.value}</strong>
+        <small>{phaseCopy.detail}</small>
+      </div>
     </header>
 
     if (error) {
@@ -289,6 +362,12 @@ export component GameBoard({ category }) {
       }
 
       if (isRevealed) {
+        <section class="winner-card">
+          <p class="eyebrow">{"Winners"}</p>
+          <strong>{`${round.results.winnerCount}/${round.results.authorTotal}`}</strong>
+          <span>{`${round.results.winnerPercentage}% of slips hit ${round.answer.author.handle}.`}</span>
+        </section>
+
         <section class="results-card">
           <h2>{"Crowd ledger"}</h2>
           <div>

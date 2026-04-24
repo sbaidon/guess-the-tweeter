@@ -111,6 +111,13 @@ const statements = {
   `),
   getSubmissions: db.prepare("SELECT * FROM submissions WHERE round_id = ?"),
   countSubmissions: db.prepare("SELECT COUNT(*) AS count FROM submissions WHERE round_id = ?"),
+  getPastRounds: db.prepare(`
+    SELECT *
+    FROM rounds
+    WHERE reveals_at <= ? OR status_override = 'revealed'
+    ORDER BY starts_at DESC
+    LIMIT ?
+  `),
   setRoundStatus: db.prepare("UPDATE rounds SET status_override = ? WHERE id = ?"),
   clearSubmissions: db.prepare("DELETE FROM submissions WHERE round_id = ?"),
   getGeneratedPost: db.prepare("SELECT * FROM generated_posts WHERE id = ? AND status = 'approved'"),
@@ -298,7 +305,8 @@ function publicRound(round, clientId) {
     throw new Error(`Post not found for round ${round.id}: ${round.post_id}`);
   }
 
-  const authorChoiceIds = parseChoices(round.author_choice_ids);
+  const authorChoiceIds = [...new Set([post.authorId, ...parseChoices(round.author_choice_ids)])]
+    .filter((authorId) => AUTHORS_BY_ID.has(authorId));
   const submissions = statements.getSubmissions.all(round.id);
   const submission = clientId ? statements.getSubmission.get(round.id, clientId) : null;
   const payload = {
@@ -334,12 +342,15 @@ function publicRound(round, clientId) {
   if (status === "revealed") {
     const authorCounts = buildCounts(submissions, "author_choice_id", authorChoiceIds);
     const authorTotal = submissions.filter((item) => item.author_choice_id).length;
+    const winnerCount = authorCounts.get(post.authorId) ?? 0;
 
     payload.answer = {
       author: AUTHORS_BY_ID.get(post.authorId),
     };
     payload.results = {
       authorTotal,
+      winnerCount,
+      winnerPercentage: authorTotal ? Math.round((winnerCount / authorTotal) * 100) : 0,
       authors: authorChoiceIds.map((authorId) => ({
         author: AUTHORS_BY_ID.get(authorId),
         count: authorCounts.get(authorId) ?? 0,
@@ -400,6 +411,18 @@ async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/rounds/current") {
     const round = ensureCurrentRound(publicCategory);
     return json(response, 200, publicRound(round, url.searchParams.get("clientId")));
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/rounds/history") {
+    const requestedLimit = Number(url.searchParams.get("limit") ?? 12);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(50, Math.max(1, requestedLimit))
+      : 12;
+    const rounds = statements.getPastRounds
+      .all(Date.now(), limit)
+      .map((round) => publicRound(round));
+
+    return json(response, 200, { rounds });
   }
 
   const submissionMatch = url.pathname.match(/^\/api\/rounds\/([^/]+)\/submissions$/);

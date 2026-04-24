@@ -5,6 +5,10 @@ const navigationItems = [
     label: "Play",
     to: "/play",
   },
+  {
+    label: "Archive",
+    to: "/archive",
+  },
 ];
 
 export component AppLayout({ children }) {

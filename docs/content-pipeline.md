@@ -55,8 +55,10 @@ bun run archive:schedule
 - SQLite stores generated posts, rounds, and submissions.
 - There is one authoritative public hourly round.
 - The public API exposes contest start/end metadata so the UI can show the archive countdown.
+- The player UI counts down to the vote lock and reveal windows.
 - Submissions are hidden until the round reveals.
 - After reveal, the server publishes aggregate author pick distributions.
+- Revealed rounds are available from the archive API for past-round browsing.
 
 ## Suggested provider interface
 

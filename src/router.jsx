@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppLayout.tsrx";
 import { isCategoryKey } from "./gameData";
+import { ArchivePage } from "./routes/ArchivePage.tsrx";
 import { HomePage } from "./routes/HomePage.tsrx";
 import { PlayPage } from "./routes/PlayPage.tsrx";
 
@@ -30,6 +31,12 @@ const playRoute = createRoute({
   component: PlayPage,
 });
 
+const archiveRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/archive",
+  component: ArchivePage,
+});
+
 const legacyPlayRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/play/$category",
@@ -47,7 +54,7 @@ const legacyPlayRoute = createRoute({
   component: PlayPage,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, playRoute, legacyPlayRoute]);
+const routeTree = rootRoute.addChildren([homeRoute, playRoute, archiveRoute, legacyPlayRoute]);
 
 export const router = createRouter({
   routeTree,

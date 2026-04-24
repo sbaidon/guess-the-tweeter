@@ -215,6 +215,43 @@ a {
   text-transform: uppercase;
 }
 
+.phase-meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  align-items: end;
+  margin-top: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.phase-meter span,
+.phase-meter small {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.phase-meter strong {
+  grid-row: span 2;
+  color: var(--red);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 2rem;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 0.9;
+}
+
+.phase-meter small {
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
 .stamp {
   position: absolute;
   top: 98px;
@@ -540,6 +577,7 @@ a {
 }
 
 .bonus-card,
+.winner-card,
 .results-card {
   margin-top: 22px;
   padding-top: 16px;
@@ -558,9 +596,112 @@ a {
   font-size: 1.75rem;
 }
 
+.winner-card {
+  display: grid;
+  gap: 6px;
+}
+
+.winner-card strong {
+  color: var(--red);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 3rem;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  line-height: 0.9;
+}
+
+.winner-card span {
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
 .results-card__grid {
   display: grid;
   gap: 20px;
+}
+
+.archive-card {
+  min-height: 760px;
+  padding: 28px 22px 32px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.archive-card h1 {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(4rem, 20vw, 6.75rem);
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  line-height: 0.9;
+}
+
+.archive-card__intro {
+  margin: 14px 0 22px;
+  color: var(--ink-soft);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.archive-list {
+  display: grid;
+  gap: 14px;
+}
+
+.archive-round {
+  padding: 14px 0;
+  border-top: 1px solid var(--ink);
+}
+
+.archive-round__meta,
+.archive-round__winners {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.archive-round p {
+  margin: 12px 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.3rem;
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.archive-round__answer {
+  display: grid;
+  gap: 2px;
+}
+
+.archive-round__answer strong {
+  color: var(--red);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.7rem;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.archive-round__answer span {
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.archive-round__winners {
+  display: block;
+  margin-top: 10px;
+  color: var(--red);
 }
 
 .results-list {

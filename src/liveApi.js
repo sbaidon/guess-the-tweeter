@@ -42,6 +42,17 @@ export async function submitRoundPick(roundId, payload) {
   return response.json();
 }
 
+export async function fetchRoundHistory(limit = 12, signal) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const response = await fetch(`/api/rounds/history?${params.toString()}`, { signal });
+
+  if (!response.ok) {
+    throw new Error("Could not load past rounds.");
+  }
+
+  return response.json();
+}
+
 export async function revealRound(roundId, adminToken) {
   return adminRequest(`/api/admin/rounds/${encodeURIComponent(roundId)}/reveal`, adminToken);
 }

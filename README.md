@@ -4,13 +4,15 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 
 ## Current shape
 
-- TanStack Router navigation with a single public play route
+- TanStack Router navigation for live play and archives
 - TSRX wired into the Vite build for incremental adoption
 - Home page plus `/play` for the current live round
+- `/archive` for revealed past rounds
 - Hidden prompt genres for mixed feed, tech, politics, sports, celebrities, and random people
 - Shared hourly rounds backed by SQLite
 - WebSocket updates for live pick counts and reveals
 - Author guesses for one shared hourly live round
+- Live voting close/reveal countdown and aggregate winner totals
 - One authoritative public contest per hour
 - OpenAI-compatible offline generation workers
 - 10-year archive tooling for `87,600` hourly rounds
