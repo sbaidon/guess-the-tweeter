@@ -8,8 +8,8 @@ This app is designed to run as one Bun process behind a reverse proxy. Gameplay 
 - Environment file: `/etc/guess-the-tweeter/guess-the-tweeter.env`
 - SQLite data: `/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite`
 - Backups: `/var/backups/guess-the-tweeter`
-- App port: `127.0.0.1:8787`
-- Public proxy: Caddy or nginx with HTTPS
+- App bind: `127.0.0.1:8787`
+- Public proxy: Caddy on `80/443`; port `80` only redirects to HTTPS
 
 ## First Server Setup
 
@@ -42,6 +42,7 @@ Required production values:
 
 ```env
 NODE_ENV=production
+HOST=127.0.0.1
 PORT=8787
 DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite
 BACKUP_DIR=/var/backups/guess-the-tweeter

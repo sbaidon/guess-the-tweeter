@@ -1,7 +1,10 @@
-guess-the-tweeter.example.com {
-	encode zstd gzip
+http://guess-the-tweeter.example.com {
+	redir https://guess-the-tweeter.example.com{uri} permanent
+}
 
+https://guess-the-tweeter.example.com {
 	reverse_proxy 127.0.0.1:8787
+	encode zstd gzip
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"

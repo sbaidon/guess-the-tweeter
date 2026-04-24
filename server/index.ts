@@ -167,6 +167,7 @@ const dataDir = path.join(rootDir, "data");
 const distDir = path.join(rootDir, "dist");
 const dbPath = process.env.DATABASE_PATH ?? path.join(dataDir, "guess-the-tweeter.sqlite");
 const port = Number(process.env.PORT ?? 8787);
+const host = process.env.HOST ?? "127.0.0.1";
 const adminToken = process.env.ADMIN_TOKEN ?? "";
 const trustProxy = process.env.TRUST_PROXY === "true";
 const submissionRateLimitWindowMs = Number(process.env.SUBMISSION_RATE_LIMIT_WINDOW_MS ?? 60_000);
@@ -1007,9 +1008,10 @@ for (const language of LANGUAGE_ORDER) {
 setInterval(pruneSubmissionRateLimits, submissionRateLimitWindowMs).unref?.();
 setInterval(flushRoomUpdates, roomSnapshotIntervalMs).unref?.();
 
-server.listen(port, "0.0.0.0", () => {
+server.listen(port, host, () => {
   logInfo("server_listening", {
     databasePath: dbPath,
+    host,
     port,
   });
 });
