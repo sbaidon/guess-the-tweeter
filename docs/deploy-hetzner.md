@@ -7,7 +7,7 @@ This MVP is intentionally small enough for one Hetzner VM.
 - Bun `1.3.9` or newer
 - SQLite file stored on the VM disk
 - One Bun process for static assets, API, and WebSockets
-- Reverse proxy with HTTPS in front of the Node process
+- Reverse proxy with HTTPS in front of the Bun process
 
 ## Environment
 
