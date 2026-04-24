@@ -10,8 +10,9 @@
   "scripts": {
     "dev": "bun scripts/dev.js",
     "dev:client": "bunx --bun vite",
-    "server": "bun server/index.js",
-    "start": "NODE_ENV=production bun server/index.js",
+    "server": "bun server/index.ts",
+    "start": "NODE_ENV=production bun server/index.ts",
+    "typecheck:server": "bunx tsc -p tsconfig.server.json",
     "generate:posts": "bun scripts/generate-posts.js",
     "archive:estimate-ai": "bun scripts/generate-ai-archive.js --estimate",
     "archive:generate-ai": "bun scripts/generate-ai-archive.js",

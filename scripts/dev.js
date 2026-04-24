@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 
 const processes = [
-  spawn("bun", ["server/index.js"], {
+  spawn("bun", ["server/index.ts"], {
     env: { ...process.env, NODE_ENV: "development" },
     stdio: "inherit",
   }),

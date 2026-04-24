@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "ESNext",
+    "types": ["bun-types"]
+  },
+  "include": ["server/**/*.ts", "src/**/*.js"]
+}

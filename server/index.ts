@@ -2,9 +2,11 @@ import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
+import type { WebSocket } from "ws";
 import {
   AUTHORS_BY_ID,
   DEFAULT_LANGUAGE,
@@ -15,6 +17,141 @@ import {
   getPostsForCategory,
 } from "../src/gameData.js";
 
+type CategoryKey = "all" | "tech" | "politics" | "sports" | "celebrities" | "random";
+type LanguageKey = string;
+type RoundStatus = "open" | "locked" | "revealed";
+
+type Author = {
+  id: string;
+  category: CategoryKey;
+  name: string;
+  handle: string;
+  bio: string;
+  signature: string;
+};
+
+type PlayablePost = {
+  id: string;
+  category: CategoryKey;
+  authorId: string;
+  modelId: string;
+  language?: LanguageKey;
+  text: string;
+};
+
+type RoundRow = {
+  id: string;
+  category: CategoryKey;
+  post_id: string;
+  author_choice_ids: string;
+  model_choice_ids: string;
+  starts_at: number;
+  locks_at: number;
+  reveals_at: number;
+  status_override: RoundStatus | null;
+  created_at: number;
+};
+
+type RoundRecord = {
+  id: string;
+  category: CategoryKey;
+  postId: string;
+  authorChoiceIds: string;
+  modelChoiceIds: string;
+  startsAt: number;
+  locksAt: number;
+  revealsAt: number;
+  statusOverride: RoundStatus | null;
+  createdAt: number;
+};
+
+type SubmissionRow = {
+  round_id: string;
+  client_id: string;
+  author_choice_id: string | null;
+  model_choice_id: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+type GeneratedPostRow = {
+  id: string;
+  category: CategoryKey;
+  author_id: string;
+  model_id: string;
+  text: string;
+  language: LanguageKey;
+};
+
+type SettingRow = {
+  value: string;
+};
+
+type CountRow = {
+  count: number;
+};
+
+type TableInfoRow = {
+  name: string;
+};
+
+type ContestSettings = {
+  startsAt: number;
+  endsAt: number;
+};
+
+type PublicRoundPayload = {
+  id: string;
+  category: CategoryKey;
+  status: RoundStatus;
+  startsAt: string;
+  locksAt: string;
+  revealsAt: string;
+  post: {
+    id: string;
+    category: CategoryKey;
+    language: LanguageKey;
+    languageName: string;
+    languageNativeName: string;
+    text: string;
+  };
+  authorChoices: Array<Author | undefined>;
+  submission: { authorId: string | null } | null;
+  totals: {
+    submissions: number;
+    connected: number;
+  };
+  contest: {
+    startsAt: string;
+    endsAt: string;
+    roundNumber: number;
+    totalRounds: number;
+  };
+  answer?: {
+    author: Author | undefined;
+  };
+  results?: {
+    authorTotal: number;
+    winnerCount: number;
+    winnerPercentage: number;
+    authors: Array<{
+      author: Author | undefined;
+      count: number;
+      percentage: number;
+      correct: boolean;
+    }>;
+  };
+};
+
+type SubmissionBody = {
+  clientId?: unknown;
+  authorId?: unknown;
+};
+
+type ChannelSocket = WebSocket & {
+  category?: LanguageKey;
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 const dataDir = path.join(rootDir, "data");
@@ -22,8 +159,8 @@ const distDir = path.join(rootDir, "dist");
 const dbPath = process.env.DATABASE_PATH ?? path.join(dataDir, "guess-the-tweeter.sqlite");
 const port = Number(process.env.PORT ?? 8787);
 const adminToken = process.env.ADMIN_TOKEN ?? "";
-const publicCategory = "all";
-const defaultLanguage = DEFAULT_LANGUAGE;
+const publicCategory: CategoryKey = "all";
+const defaultLanguage: LanguageKey = DEFAULT_LANGUAGE;
 const roundLengthMs = 60 * 60 * 1000;
 const lockOffsetMs = 50 * 60 * 1000;
 const revealOffsetMs = 55 * 60 * 1000;
@@ -132,15 +269,15 @@ const statements = {
   getGeneratedPosts: db.prepare("SELECT * FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC"),
 };
 
-function addYears(value, years) {
+function addYears(value: number, years: number): number {
   const date = new Date(value);
   date.setUTCFullYear(date.getUTCFullYear() + years);
   return date.getTime();
 }
 
-function ensureContestSettings(now = Date.now()) {
-  const startSetting = statements.getSetting.get("contest:start_at");
-  const endSetting = statements.getSetting.get("contest:end_at");
+function ensureContestSettings(now = Date.now()): ContestSettings {
+  const startSetting = statements.getSetting.get("contest:start_at") as SettingRow | null;
+  const endSetting = statements.getSetting.get("contest:end_at") as SettingRow | null;
 
   if (startSetting && endSetting) {
     return {
@@ -157,24 +294,26 @@ function ensureContestSettings(now = Date.now()) {
   return { startsAt, endsAt };
 }
 
-function hashToInt(value) {
+function hashToInt(value: string): number {
   const hash = crypto.createHash("sha256").update(value).digest("hex").slice(0, 12);
   return Number.parseInt(hash, 16);
 }
 
-function seededPick(items, seed) {
+function seededPick<T>(items: T[], seed: string): T {
   return items[hashToInt(seed) % items.length];
 }
 
-function seededShuffle(items, seed) {
+function seededShuffle<T extends string | { id: string }>(items: T[], seed: string): T[] {
   return [...items].sort((left, right) => {
-    const leftHash = hashToInt(`${seed}:${left.id ?? left}`);
-    const rightHash = hashToInt(`${seed}:${right.id ?? right}`);
+    const leftValue = typeof left === "string" ? left : left.id;
+    const rightValue = typeof right === "string" ? right : right.id;
+    const leftHash = hashToInt(`${seed}:${leftValue}`);
+    const rightHash = hashToInt(`${seed}:${rightValue}`);
     return leftHash - rightHash;
   });
 }
 
-function generatedRowToPost(row) {
+function generatedRowToPost(row: GeneratedPostRow): PlayablePost {
   return {
     id: row.id,
     category: row.category,
@@ -185,38 +324,37 @@ function generatedRowToPost(row) {
   };
 }
 
-function postLanguage(post) {
+function postLanguage(post: PlayablePost): LanguageKey {
   return post.language ?? defaultLanguage;
 }
 
-function roundLanguage(round) {
+function roundLanguage(round: RoundRow): LanguageKey {
   const [language] = String(round.id).split(":");
   return LANGUAGES_BY_ID.has(language) ? language : defaultLanguage;
 }
 
-function getGeneratedPostsForCategory(category) {
-  return statements.getGeneratedPosts
-    .all()
+function getGeneratedPostsForCategory(category: CategoryKey): PlayablePost[] {
+  return (statements.getGeneratedPosts.all() as GeneratedPostRow[])
     .filter((post) => category === "all" || post.category === category)
     .map(generatedRowToPost);
 }
 
-function getPlayablePostsForCategory(category) {
-  return [...getPostsForCategory(category), ...getGeneratedPostsForCategory(category)];
+function getPlayablePostsForCategory(category: CategoryKey): PlayablePost[] {
+  return [...getPostsForCategory(category), ...getGeneratedPostsForCategory(category)] as PlayablePost[];
 }
 
-function getPlayablePostsForLanguage(category, language) {
+function getPlayablePostsForLanguage(category: CategoryKey, language: LanguageKey): PlayablePost[] {
   return getPlayablePostsForCategory(category).filter((post) => postLanguage(post) === language);
 }
 
-function getPlayablePost(postId) {
-  const seededPost = POSTS_BY_ID.get(postId);
+function getPlayablePost(postId: string): PlayablePost | null {
+  const seededPost = POSTS_BY_ID.get(postId) as PlayablePost | undefined;
 
   if (seededPost) {
     return seededPost;
   }
 
-  const generatedPost = statements.getGeneratedPost.get(postId);
+  const generatedPost = statements.getGeneratedPost.get(postId) as GeneratedPostRow | null;
 
   if (!generatedPost) {
     return null;
@@ -225,11 +363,16 @@ function getPlayablePost(postId) {
   return generatedRowToPost(generatedPost);
 }
 
-function createRoundRecord(category, startsAt, idPrefix = "hourly", language = defaultLanguage) {
+function createRoundRecord(
+  category: CategoryKey,
+  startsAt: number,
+  idPrefix = "hourly",
+  language: LanguageKey = defaultLanguage,
+): RoundRecord {
   const languagePosts = getPlayablePostsForLanguage(category, language);
   const playablePosts = languagePosts.length ? languagePosts : getPlayablePostsForCategory(category);
   const post = seededPick(playablePosts, `${category}:${language}:${startsAt}:post`);
-  const authorPool = getAuthorsForMode(category, post.category).filter(
+  const authorPool = (getAuthorsForMode(category, post.category) as Author[]).filter(
     (author) => author.id !== post.authorId,
   );
   const authorChoiceIds = seededShuffle(authorPool, `${category}:${startsAt}:authors`)
@@ -252,7 +395,7 @@ function createRoundRecord(category, startsAt, idPrefix = "hourly", language = d
   };
 }
 
-function insertRound(record) {
+function insertRound(record: RoundRecord): RoundRow {
   statements.insertRound.run(
     record.id,
     record.category,
@@ -265,23 +408,27 @@ function insertRound(record) {
     record.statusOverride,
     record.createdAt,
   );
-  return statements.getRound.get(record.id);
+  return statements.getRound.get(record.id) as RoundRow;
 }
 
-function currentHourStart(now = Date.now()) {
+function currentHourStart(now = Date.now()): number {
   const date = new Date(now);
   date.setUTCMinutes(0, 0, 0);
   return date.getTime();
 }
 
-function ensureCurrentRound(category, now = Date.now()) {
+function ensureCurrentRound(category: CategoryKey, now = Date.now()): RoundRow {
   return ensureCurrentRoundForLanguage(category, defaultLanguage, now);
 }
 
-function ensureCurrentRoundForLanguage(category, language = defaultLanguage, now = Date.now()) {
+function ensureCurrentRoundForLanguage(
+  category: CategoryKey,
+  language: LanguageKey = defaultLanguage,
+  now = Date.now(),
+): RoundRow {
   const startsAt = currentHourStart(now);
   const roundId = `${language}:${category}:hourly:${startsAt}`;
-  const existingRound = statements.getRound.get(roundId);
+  const existingRound = statements.getRound.get(roundId) as RoundRow | null;
 
   if (existingRound) {
     const existingPost = getPlayablePost(existingRound.post_id);
@@ -296,12 +443,12 @@ function ensureCurrentRoundForLanguage(category, language = defaultLanguage, now
   return insertRound(createRoundRecord(category, startsAt, "hourly", language));
 }
 
-function getRequestLanguage(url) {
+function getRequestLanguage(url: URL): LanguageKey {
   const language = url.searchParams.get("language") ?? defaultLanguage;
   return LANGUAGES_BY_ID.has(language) ? language : defaultLanguage;
 }
 
-function computeStatus(round, now = Date.now()) {
+function computeStatus(round: RoundRow, now = Date.now()): RoundStatus {
   if (round.status_override) {
     return round.status_override;
   }
@@ -317,11 +464,15 @@ function computeStatus(round, now = Date.now()) {
   return "open";
 }
 
-function parseChoices(value) {
-  return JSON.parse(value);
+function parseChoices(value: string): string[] {
+  return JSON.parse(value) as string[];
 }
 
-function buildCounts(submissions, field, choiceIds) {
+function buildCounts(
+  submissions: SubmissionRow[],
+  field: "author_choice_id" | "model_choice_id",
+  choiceIds: string[],
+): Map<string, number> {
   const counts = new Map(choiceIds.map((choiceId) => [choiceId, 0]));
 
   for (const submission of submissions) {
@@ -335,7 +486,7 @@ function buildCounts(submissions, field, choiceIds) {
   return counts;
 }
 
-function publicRound(round, clientId) {
+function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayload {
   const status = computeStatus(round);
   const post = getPlayablePost(round.post_id);
   const contest = ensureContestSettings();
@@ -347,9 +498,11 @@ function publicRound(round, clientId) {
   const authorChoiceIds = [...new Set([post.authorId, ...parseChoices(round.author_choice_ids)])]
     .filter((authorId) => AUTHORS_BY_ID.has(authorId));
   const language = roundLanguage(round);
-  const submissions = statements.getSubmissions.all(round.id);
-  const submission = clientId ? statements.getSubmission.get(round.id, clientId) : null;
-  const payload = {
+  const submissions = statements.getSubmissions.all(round.id) as SubmissionRow[];
+  const submission = clientId
+    ? (statements.getSubmission.get(round.id, clientId) as SubmissionRow | null)
+    : null;
+  const payload: PublicRoundPayload = {
     id: round.id,
     category: round.category,
     status,
@@ -364,14 +517,14 @@ function publicRound(round, clientId) {
       languageNativeName: LANGUAGES_BY_ID.get(language)?.nativeName ?? "English",
       text: post.text,
     },
-    authorChoices: authorChoiceIds.map((authorId) => AUTHORS_BY_ID.get(authorId)),
+    authorChoices: authorChoiceIds.map((authorId) => AUTHORS_BY_ID.get(authorId) as Author | undefined),
     submission: submission
       ? {
           authorId: submission.author_choice_id,
         }
       : null,
     totals: {
-      submissions: statements.countSubmissions.get(round.id).count,
+      submissions: (statements.countSubmissions.get(round.id) as CountRow).count,
       connected: countConnections(language),
     },
     contest: {
@@ -388,14 +541,14 @@ function publicRound(round, clientId) {
     const winnerCount = authorCounts.get(post.authorId) ?? 0;
 
     payload.answer = {
-      author: AUTHORS_BY_ID.get(post.authorId),
+      author: AUTHORS_BY_ID.get(post.authorId) as Author | undefined,
     };
     payload.results = {
       authorTotal,
       winnerCount,
       winnerPercentage: authorTotal ? Math.round((winnerCount / authorTotal) * 100) : 0,
       authors: authorChoiceIds.map((authorId) => ({
-        author: AUTHORS_BY_ID.get(authorId),
+        author: AUTHORS_BY_ID.get(authorId) as Author | undefined,
         count: authorCounts.get(authorId) ?? 0,
         percentage: authorTotal ? Math.round(((authorCounts.get(authorId) ?? 0) / authorTotal) * 100) : 0,
         correct: authorId === post.authorId,
@@ -406,8 +559,8 @@ function publicRound(round, clientId) {
   return payload;
 }
 
-function ensureGeneratedPostsLanguageColumn() {
-  const columns = db.prepare("PRAGMA table_info(generated_posts)").all();
+function ensureGeneratedPostsLanguageColumn(): void {
+  const columns = db.prepare("PRAGMA table_info(generated_posts)").all() as TableInfoRow[];
   const hasLanguage = columns.some((column) => column.name === "language");
 
   if (!hasLanguage) {
@@ -415,7 +568,7 @@ function ensureGeneratedPostsLanguageColumn() {
   }
 }
 
-function json(response, statusCode, body) {
+function json(response: ServerResponse, statusCode: number, body: unknown): void {
   const payload = JSON.stringify(body);
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
@@ -424,16 +577,16 @@ function json(response, statusCode, body) {
   response.end(payload);
 }
 
-function notFound(response) {
+function notFound(response: ServerResponse): void {
   json(response, 404, { error: "not_found" });
 }
 
-function badRequest(response, message) {
+function badRequest(response: ServerResponse, message: string): void {
   json(response, 400, { error: "bad_request", message });
 }
 
-async function readJson(request) {
-  const chunks = [];
+async function readJson(request: IncomingMessage): Promise<SubmissionBody> {
+  const chunks: Buffer[] = [];
 
   for await (const chunk of request) {
     chunks.push(chunk);
@@ -446,7 +599,7 @@ async function readJson(request) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-function requireAdmin(request, response) {
+function requireAdmin(request: IncomingMessage, response: ServerResponse): boolean {
   if (!adminToken) {
     return true;
   }
@@ -459,7 +612,7 @@ function requireAdmin(request, response) {
   return false;
 }
 
-async function handleApi(request, response, url) {
+async function handleApi(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
   if (request.method === "GET" && url.pathname === "/api/rounds/current") {
     const round = ensureCurrentRoundForLanguage(publicCategory, getRequestLanguage(url));
     return json(response, 200, publicRound(round, url.searchParams.get("clientId")));
@@ -472,19 +625,20 @@ async function handleApi(request, response, url) {
       ? Math.min(50, Math.max(1, requestedLimit))
       : 12;
     const rounds = statements.getPastRounds
-      .all(Date.now(), limit * 10)
+      .all(Date.now(), limit * 10) as RoundRow[];
+    const publicRounds = rounds
       .filter((round) => round.id.startsWith(`${language}:`) || (!round.id.includes(":all:") && language === defaultLanguage))
       .slice(0, limit)
       .map((round) => publicRound(round));
 
-    return json(response, 200, { rounds });
+    return json(response, 200, { rounds: publicRounds });
   }
 
   const submissionMatch = url.pathname.match(/^\/api\/rounds\/([^/]+)\/submissions$/);
 
   if (request.method === "POST" && submissionMatch) {
     const roundId = decodeURIComponent(submissionMatch[1]);
-    const round = statements.getRound.get(roundId);
+    const round = statements.getRound.get(roundId) as RoundRow | null;
 
     if (!round) {
       return notFound(response);
@@ -501,7 +655,9 @@ async function handleApi(request, response, url) {
       return badRequest(response, "Missing clientId.");
     }
 
-    if (body.authorId && !authorChoiceIds.has(body.authorId)) {
+    const authorId = typeof body.authorId === "string" ? body.authorId : null;
+
+    if (authorId && !authorChoiceIds.has(authorId)) {
       return badRequest(response, "Invalid author choice.");
     }
 
@@ -509,7 +665,7 @@ async function handleApi(request, response, url) {
     statements.upsertSubmission.run(
       roundId,
       body.clientId,
-      body.authorId ?? null,
+      authorId,
       null,
       now,
       now,
@@ -527,7 +683,7 @@ async function handleApi(request, response, url) {
     }
 
     const roundId = decodeURIComponent(revealMatch[1]);
-    const round = statements.getRound.get(roundId);
+    const round = statements.getRound.get(roundId) as RoundRow | null;
 
     if (!round) {
       return notFound(response);
@@ -535,7 +691,7 @@ async function handleApi(request, response, url) {
 
     statements.setRoundStatus.run("revealed", roundId);
     broadcastUpdate(roundLanguage(round));
-    return json(response, 200, publicRound(statements.getRound.get(roundId)));
+    return json(response, 200, publicRound(statements.getRound.get(roundId) as RoundRow));
   }
 
   const resetMatch = url.pathname.match(/^\/api\/admin\/rounds\/([^/]+)\/reset$/);
@@ -546,7 +702,7 @@ async function handleApi(request, response, url) {
     }
 
     const roundId = decodeURIComponent(resetMatch[1]);
-    const round = statements.getRound.get(roundId);
+    const round = statements.getRound.get(roundId) as RoundRow | null;
 
     if (!round) {
       return notFound(response);
@@ -555,13 +711,13 @@ async function handleApi(request, response, url) {
     statements.clearSubmissions.run(roundId);
     statements.setRoundStatus.run(null, roundId);
     broadcastUpdate(roundLanguage(round));
-    return json(response, 200, publicRound(statements.getRound.get(roundId)));
+    return json(response, 200, publicRound(statements.getRound.get(roundId) as RoundRow));
   }
 
   return notFound(response);
 }
 
-function serveStatic(request, response, url) {
+function serveStatic(request: IncomingMessage, response: ServerResponse, url: URL): void {
   let filePath = path.join(distDir, url.pathname === "/" ? "index.html" : url.pathname);
 
   if (!filePath.startsWith(distDir)) {
@@ -606,9 +762,9 @@ const server = http.createServer(async (request, response) => {
 });
 
 const wss = new WebSocketServer({ server, path: "/ws" });
-const sockets = new Set();
+const sockets = new Set<ChannelSocket>();
 
-function countConnections(channel) {
+function countConnections(channel: LanguageKey): number {
   let count = 0;
 
   for (const socket of sockets) {
@@ -620,7 +776,7 @@ function countConnections(channel) {
   return count;
 }
 
-function broadcastUpdate(category) {
+function broadcastUpdate(category: LanguageKey): void {
   for (const socket of sockets) {
     if (socket.readyState === socket.OPEN && socket.category === category) {
       socket.send(JSON.stringify({ type: "round:update", category }));
@@ -628,7 +784,7 @@ function broadcastUpdate(category) {
   }
 }
 
-wss.on("connection", (socket, request) => {
+wss.on("connection", (socket: ChannelSocket, request: IncomingMessage) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   socket.category = getRequestLanguage(url);
   sockets.add(socket);
