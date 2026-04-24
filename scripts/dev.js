@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 
 const processes = [
-  spawn("node", ["server/index.js"], {
+  spawn("bun", ["server/index.js"], {
     env: { ...process.env, NODE_ENV: "development" },
     stdio: "inherit",
   }),
-  spawn("npx", ["vite"], {
+  spawn("bunx", ["--bun", "vite"], {
     env: { ...process.env },
     stdio: "inherit",
   }),

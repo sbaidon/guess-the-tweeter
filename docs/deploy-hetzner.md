@@ -4,9 +4,9 @@ This MVP is intentionally small enough for one Hetzner VM.
 
 ## Runtime
 
-- Node `20.19.0` or newer
+- Bun `1.3.9` or newer
 - SQLite file stored on the VM disk
-- One Node process for static assets, API, and WebSockets
+- One Bun process for static assets, API, and WebSockets
 - Reverse proxy with HTTPS in front of the Node process
 
 ## Environment
@@ -18,9 +18,9 @@ This MVP is intentionally small enough for one Hetzner VM.
 ## Process
 
 ```bash
-npm ci
-npm run build
-npm start
+bun install --frozen-lockfile
+bun run build
+bun start
 ```
 
 For a durable setup, run the process under `systemd` and proxy traffic with Caddy or nginx.

@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
@@ -30,8 +30,8 @@ const revealOffsetMs = 55 * 60 * 1000;
 fs.mkdirSync(dataDir, { recursive: true });
 
 const db = new Database(dbPath);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+db.exec("PRAGMA journal_mode = WAL");
+db.exec("PRAGMA foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS rounds (
@@ -79,7 +79,7 @@ const statements = {
       status_override,
       created_at
     )
-    VALUES (@id, @category, @postId, @authorChoiceIds, @modelChoiceIds, @startsAt, @locksAt, @revealsAt, @statusOverride, @createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `),
   getSetting: db.prepare("SELECT value FROM settings WHERE key = ?"),
   setSetting: db.prepare(`
@@ -91,7 +91,7 @@ const statements = {
   getSubmission: db.prepare("SELECT * FROM submissions WHERE round_id = ? AND client_id = ?"),
   upsertSubmission: db.prepare(`
     INSERT INTO submissions (round_id, client_id, author_choice_id, model_choice_id, created_at, updated_at)
-    VALUES (@roundId, @clientId, @authorChoiceId, @modelChoiceId, @createdAt, @updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(round_id, client_id) DO UPDATE SET
       author_choice_id = COALESCE(excluded.author_choice_id, submissions.author_choice_id),
       model_choice_id = COALESCE(excluded.model_choice_id, submissions.model_choice_id),
@@ -154,7 +154,18 @@ function createRoundRecord(category, startsAt, idPrefix = "hourly") {
 }
 
 function insertRound(record) {
-  statements.insertRound.run(record);
+  statements.insertRound.run(
+    record.id,
+    record.category,
+    record.postId,
+    record.authorChoiceIds,
+    record.modelChoiceIds,
+    record.startsAt,
+    record.locksAt,
+    record.revealsAt,
+    record.statusOverride,
+    record.createdAt,
+  );
   return statements.getRound.get(record.id);
 }
 
@@ -391,14 +402,14 @@ async function handleApi(request, response, url) {
     }
 
     const now = Date.now();
-    statements.upsertSubmission.run({
+    statements.upsertSubmission.run(
       roundId,
-      clientId: body.clientId,
-      authorChoiceId: body.authorId ?? null,
-      modelChoiceId: body.modelId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    });
+      body.clientId,
+      body.authorId ?? null,
+      body.modelId ?? null,
+      now,
+      now,
+    );
 
     broadcastUpdate(round.category);
     return json(response, 200, publicRound(round, body.clientId));

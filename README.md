@@ -17,22 +17,22 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 ## Run it
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
-Recommended runtime: Node `20.19.0` or newer. This repo includes `.tool-versions` for `asdf`.
+Recommended runtime: Bun `1.3.9` or newer. This repo includes `.tool-versions` for `asdf`.
 
-The dev command starts both the Node server on `8787` and Vite on `5173`. Vite proxies `/api` and `/ws` to the server.
+The dev command starts both the Bun server on `8787` and Vite on `5173`. Vite proxies `/api` and `/ws` to the server.
 
 Build for production:
 
 ```bash
-npm run build
-npm start
+bun run build
+bun start
 ```
 
-Production serves the built frontend and API from the same Node process. SQLite data is written to `data/guess-the-tweeter.sqlite` by default.
+Production serves the built frontend and API from the same Bun process. SQLite data is written to `data/guess-the-tweeter.sqlite` by default.
 
 ## Content generation direction
 
