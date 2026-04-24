@@ -16,7 +16,7 @@ Instead:
 2. Send generation requests to OpenRouter or a direct OpenAI-compatible API out of band.
 3. Store approved candidates in SQLite with metadata:
    - category
-   - persona
+   - real public handle/persona
    - internal model metadata for cost/debugging
    - prompt template version
    - source model

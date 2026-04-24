@@ -11,7 +11,7 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 - Hidden prompt genres for mixed feed, tech, politics, sports, celebrities, and random people
 - Shared hourly rounds backed by SQLite
 - WebSocket updates for live pick counts and reveals
-- Author guesses for one shared hourly live round
+- Author guesses using real public handles for one shared hourly parody round
 - Live voting close/reveal countdown and aggregate winner totals
 - One authoritative public contest per hour
 - OpenAI-compatible offline generation workers

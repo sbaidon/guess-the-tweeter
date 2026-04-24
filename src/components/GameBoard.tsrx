@@ -299,6 +299,7 @@ export component GameBoard({ category }) {
         </div>
         <p>{round.post.text}</p>
         <div class="post-card__foot">
+          <span>{"Fake parody post"}</span>
           <span>{`${round.totals.submissions} picks`}</span>
           <span>{`${round.totals.connected} live`}</span>
         </div>
