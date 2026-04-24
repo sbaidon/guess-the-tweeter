@@ -49,6 +49,7 @@ ADMIN_TOKEN=replace-with-a-long-random-token
 TRUST_PROXY=true
 SUBMISSION_RATE_LIMIT_WINDOW_MS=60000
 SUBMISSION_RATE_LIMIT_MAX=20
+ROOM_SNAPSHOT_INTERVAL_MS=2000
 CONTEST_YEARS=10
 ```
 
@@ -103,6 +104,17 @@ Expected shape:
   "rateLimitBuckets": 0
 }
 ```
+
+## Realtime Behavior
+
+Submissions update durable SQLite aggregate counters in `round_totals` and `round_author_counts`. WebSocket clients do not receive one event per vote. Instead, rooms are marked dirty and the server sends compact `round:snapshot` payloads at `ROOM_SNAPSHOT_INTERVAL_MS`.
+
+This keeps the hot path predictable:
+
+- One idempotent submission insert per player.
+- One aggregate counter increment for a new vote.
+- One batched snapshot fanout per dirty language room.
+- No result scans over raw submissions during live play or reveal.
 
 ## Backups
 

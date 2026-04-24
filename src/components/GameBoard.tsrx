@@ -109,6 +109,22 @@ function matchAuthorGuess(value, authors = []) {
   );
 }
 
+function mergeRoundSnapshot(currentRound, snapshotRound) {
+  if (!currentRound || currentRound.id !== snapshotRound.id) {
+    return snapshotRound;
+  }
+
+  const snapshotStillIncludesSubmissionWindow =
+    snapshotRound.totals.submissions >= currentRound.totals.submissions;
+
+  return {
+    ...snapshotRound,
+    submission: snapshotStillIncludesSubmissionWindow
+      ? currentRound.submission ?? snapshotRound.submission
+      : snapshotRound.submission,
+  };
+}
+
 component ResultList({ items, copy }) {
   <div class="results-list">
     for (const item of items) {
@@ -211,6 +227,12 @@ export component GameBoard({ category, language = "en" }) {
 
     socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);
+
+      if (message.type === "round:snapshot" && message.round) {
+        setRound((currentRound) => mergeRoundSnapshot(currentRound, message.round));
+        setError("");
+        return;
+      }
 
       if (message.type === "round:update") {
         fetchCurrentRound(category, clientId, language)

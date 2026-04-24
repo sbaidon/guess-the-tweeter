@@ -39,6 +39,7 @@ bun start
 
 Production serves the built frontend and API from the same Bun process. SQLite data is written to `data/guess-the-tweeter.sqlite` by default.
 For Hetzner/systemd deployment, reverse proxy config, health checks, and backups, see [docs/deploy-hetzner.md](./docs/deploy-hetzner.md).
+The server maintains SQLite aggregate counters for each round and batches WebSocket room updates with `ROOM_SNAPSHOT_INTERVAL_MS` instead of fanning out every vote.
 
 Operational commands:
 

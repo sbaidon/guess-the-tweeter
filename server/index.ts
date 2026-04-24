@@ -91,6 +91,11 @@ type CountRow = {
   count: number;
 };
 
+type AuthorCountRow = {
+  author_id: string;
+  count: number;
+};
+
 type HealthRow = {
   ok: number;
 };
@@ -166,6 +171,7 @@ const adminToken = process.env.ADMIN_TOKEN ?? "";
 const trustProxy = process.env.TRUST_PROXY === "true";
 const submissionRateLimitWindowMs = Number(process.env.SUBMISSION_RATE_LIMIT_WINDOW_MS ?? 60_000);
 const submissionRateLimitMax = Number(process.env.SUBMISSION_RATE_LIMIT_MAX ?? 20);
+const roomSnapshotIntervalMs = Number(process.env.ROOM_SNAPSHOT_INTERVAL_MS ?? 2_000);
 const publicCategory: CategoryKey = "all";
 const defaultLanguage: LanguageKey = DEFAULT_LANGUAGE;
 const roundLengthMs = 60 * 60 * 1000;
@@ -224,9 +230,24 @@ db.exec(`
     created_at INTEGER NOT NULL,
     approved_at INTEGER
   );
+
+  CREATE TABLE IF NOT EXISTS round_author_counts (
+    round_id TEXT NOT NULL,
+    author_id TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (round_id, author_id),
+    FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS round_totals (
+    round_id TEXT PRIMARY KEY,
+    author_total INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE
+  );
 `);
 
 ensureGeneratedPostsLanguageColumn();
+ensureSubmissionCounters();
 
 const statements = {
   getRound: db.prepare("SELECT * FROM rounds WHERE id = ?"),
@@ -253,16 +274,25 @@ const statements = {
   `),
   deleteSetting: db.prepare("DELETE FROM settings WHERE key = ?"),
   getSubmission: db.prepare("SELECT * FROM submissions WHERE round_id = ? AND client_id = ?"),
-  upsertSubmission: db.prepare(`
+  insertSubmission: db.prepare(`
     INSERT INTO submissions (round_id, client_id, author_choice_id, model_choice_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(round_id, client_id) DO UPDATE SET
-      author_choice_id = COALESCE(excluded.author_choice_id, submissions.author_choice_id),
-      model_choice_id = COALESCE(excluded.model_choice_id, submissions.model_choice_id),
-      updated_at = excluded.updated_at
+    VALUES (?, ?, ?, NULL, ?, ?)
+    ON CONFLICT(round_id, client_id) DO NOTHING
   `),
-  getSubmissions: db.prepare("SELECT * FROM submissions WHERE round_id = ?"),
-  countSubmissions: db.prepare("SELECT COUNT(*) AS count FROM submissions WHERE round_id = ?"),
+  getRoundTotal: db.prepare("SELECT author_total AS count FROM round_totals WHERE round_id = ?"),
+  getAuthorCounts: db.prepare("SELECT author_id, count FROM round_author_counts WHERE round_id = ?"),
+  incrementAuthorCount: db.prepare(`
+    INSERT INTO round_author_counts (round_id, author_id, count)
+    VALUES (?, ?, 1)
+    ON CONFLICT(round_id, author_id) DO UPDATE SET count = count + 1
+  `),
+  incrementRoundTotal: db.prepare(`
+    INSERT INTO round_totals (round_id, author_total)
+    VALUES (?, 1)
+    ON CONFLICT(round_id) DO UPDATE SET author_total = author_total + 1
+  `),
+  clearAuthorCounts: db.prepare("DELETE FROM round_author_counts WHERE round_id = ?"),
+  clearRoundTotal: db.prepare("DELETE FROM round_totals WHERE round_id = ?"),
   healthCheck: db.prepare("SELECT 1 AS ok"),
   getPastRounds: db.prepare(`
     SELECT *
@@ -277,6 +307,26 @@ const statements = {
   getGeneratedPost: db.prepare("SELECT * FROM generated_posts WHERE id = ? AND status = 'approved'"),
   getGeneratedPosts: db.prepare("SELECT * FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC"),
 };
+
+const recordSubmission = db.transaction(
+  (roundId: string, clientId: string, authorId: string | null, now: number): boolean => {
+    const existingSubmission = statements.getSubmission.get(roundId, clientId) as SubmissionRow | null;
+
+    if (existingSubmission?.author_choice_id || !authorId) {
+      return false;
+    }
+
+    const result = statements.insertSubmission.run(roundId, clientId, authorId, now, now);
+
+    if (result.changes === 0) {
+      return false;
+    }
+
+    statements.incrementAuthorCount.run(roundId, authorId);
+    statements.incrementRoundTotal.run(roundId);
+    return true;
+  },
+);
 
 function addYears(value: number, years: number): number {
   const date = new Date(value);
@@ -477,22 +527,21 @@ function parseChoices(value: string): string[] {
   return JSON.parse(value) as string[];
 }
 
-function buildCounts(
-  submissions: SubmissionRow[],
-  field: "author_choice_id" | "model_choice_id",
-  choiceIds: string[],
-): Map<string, number> {
+function getStoredAuthorCounts(roundId: string, choiceIds: string[]): Map<string, number> {
   const counts = new Map(choiceIds.map((choiceId) => [choiceId, 0]));
+  const rows = statements.getAuthorCounts.all(roundId) as AuthorCountRow[];
 
-  for (const submission of submissions) {
-    const value = submission[field];
-
-    if (value && counts.has(value)) {
-      counts.set(value, counts.get(value) + 1);
+  for (const row of rows) {
+    if (counts.has(row.author_id)) {
+      counts.set(row.author_id, row.count);
     }
   }
 
   return counts;
+}
+
+function getStoredAuthorTotal(roundId: string): number {
+  return (statements.getRoundTotal.get(roundId) as CountRow | null)?.count ?? 0;
 }
 
 function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayload {
@@ -507,10 +556,10 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
   const authorChoiceIds = [...new Set([post.authorId, ...parseChoices(round.author_choice_ids)])]
     .filter((authorId) => AUTHORS_BY_ID.has(authorId));
   const language = roundLanguage(round);
-  const submissions = statements.getSubmissions.all(round.id) as SubmissionRow[];
   const submission = clientId
     ? (statements.getSubmission.get(round.id, clientId) as SubmissionRow | null)
     : null;
+  const authorTotal = getStoredAuthorTotal(round.id);
   const payload: PublicRoundPayload = {
     id: round.id,
     category: round.category,
@@ -533,7 +582,7 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
         }
       : null,
     totals: {
-      submissions: (statements.countSubmissions.get(round.id) as CountRow).count,
+      submissions: authorTotal,
       connected: countConnections(language),
     },
     contest: {
@@ -545,8 +594,7 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
   };
 
   if (status === "revealed") {
-    const authorCounts = buildCounts(submissions, "author_choice_id", authorChoiceIds);
-    const authorTotal = submissions.filter((item) => item.author_choice_id).length;
+    const authorCounts = getStoredAuthorCounts(round.id, authorChoiceIds);
     const winnerCount = authorCounts.get(post.authorId) ?? 0;
 
     payload.answer = {
@@ -575,6 +623,22 @@ function ensureGeneratedPostsLanguageColumn(): void {
   if (!hasLanguage) {
     db.exec("ALTER TABLE generated_posts ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
   }
+}
+
+function ensureSubmissionCounters(): void {
+  db.exec(`
+    INSERT OR IGNORE INTO round_author_counts (round_id, author_id, count)
+    SELECT round_id, author_choice_id, COUNT(*)
+    FROM submissions
+    WHERE author_choice_id IS NOT NULL
+    GROUP BY round_id, author_choice_id;
+
+    INSERT OR IGNORE INTO round_totals (round_id, author_total)
+    SELECT round_id, COUNT(*)
+    FROM submissions
+    WHERE author_choice_id IS NOT NULL
+    GROUP BY round_id;
+  `);
 }
 
 function logInfo(message: string, meta: Record<string, unknown> = {}): void {
@@ -746,16 +810,12 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     }
 
     const now = Date.now();
-    statements.upsertSubmission.run(
-      roundId,
-      body.clientId,
-      authorId,
-      null,
-      now,
-      now,
-    );
+    const recorded = recordSubmission(roundId, body.clientId, authorId, now);
 
-    broadcastUpdate(roundLanguage(round));
+    if (recorded) {
+      markRoomDirty(roundLanguage(round));
+    }
+
     return json(response, 200, publicRound(round, body.clientId));
   }
 
@@ -774,7 +834,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     }
 
     statements.setRoundStatus.run("revealed", roundId);
-    broadcastUpdate(roundLanguage(round));
+    markRoomDirty(roundLanguage(round));
     return json(response, 200, publicRound(statements.getRound.get(roundId) as RoundRow));
   }
 
@@ -793,8 +853,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     }
 
     statements.clearSubmissions.run(roundId);
+    statements.clearAuthorCounts.run(roundId);
+    statements.clearRoundTotal.run(roundId);
     statements.setRoundStatus.run(null, roundId);
-    broadcastUpdate(roundLanguage(round));
+    markRoomDirty(roundLanguage(round));
     return json(response, 200, publicRound(statements.getRound.get(roundId) as RoundRow));
   }
 
@@ -866,6 +928,7 @@ const server = http.createServer(async (request, response) => {
 
 const wss = new WebSocketServer({ server, path: "/ws" });
 const sockets = new Set<ChannelSocket>();
+const dirtyRooms = new Set<LanguageKey>();
 
 function countConnections(channel: LanguageKey): number {
   let count = 0;
@@ -879,11 +942,38 @@ function countConnections(channel: LanguageKey): number {
   return count;
 }
 
-function broadcastUpdate(category: LanguageKey): void {
+function mergeSocketRound(category: LanguageKey): string {
+  const round = ensureCurrentRoundForLanguage(publicCategory, category);
+  return JSON.stringify({
+    type: "round:snapshot",
+    round: publicRound(round),
+  });
+}
+
+function sendRoomUpdate(category: LanguageKey): void {
+  const payload = mergeSocketRound(category);
+
   for (const socket of sockets) {
     if (socket.readyState === socket.OPEN && socket.category === category) {
-      socket.send(JSON.stringify({ type: "round:update", category }));
+      socket.send(payload);
     }
+  }
+}
+
+function markRoomDirty(category: LanguageKey): void {
+  dirtyRooms.add(category);
+}
+
+function flushRoomUpdates(): void {
+  if (dirtyRooms.size === 0) {
+    return;
+  }
+
+  const rooms = [...dirtyRooms];
+  dirtyRooms.clear();
+
+  for (const room of rooms) {
+    sendRoomUpdate(room);
   }
 }
 
@@ -891,12 +981,16 @@ wss.on("connection", (socket: ChannelSocket, request: IncomingMessage) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   socket.category = getRequestLanguage(url);
   sockets.add(socket);
-  socket.send(JSON.stringify({ type: "round:update", category: socket.category }));
-  broadcastUpdate(socket.category);
+  socket.send(mergeSocketRound(socket.category));
+  markRoomDirty(socket.category);
 
   socket.on("close", () => {
+    const category = socket.category;
     sockets.delete(socket);
-    broadcastUpdate(socket.category);
+
+    if (category) {
+      markRoomDirty(category);
+    }
   });
 });
 
@@ -906,6 +1000,7 @@ for (const language of LANGUAGE_ORDER) {
 }
 
 setInterval(pruneSubmissionRateLimits, submissionRateLimitWindowMs).unref?.();
+setInterval(flushRoomUpdates, roomSnapshotIntervalMs).unref?.();
 
 server.listen(port, "0.0.0.0", () => {
   logInfo("server_listening", {
