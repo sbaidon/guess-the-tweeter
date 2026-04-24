@@ -9,22 +9,6 @@ function formatClock(value) {
   }).format(new Date(value));
 }
 
-function getChoiceState(choiceId, correctId, selectedId, status) {
-  if (status === "revealed") {
-    if (choiceId === correctId) {
-      return "correct";
-    }
-
-    if (choiceId === selectedId) {
-      return "incorrect";
-    }
-
-    return "";
-  }
-
-  return choiceId === selectedId ? "selected" : "";
-}
-
 function getStatusLabel(round) {
   if (!round) {
     return "Loading";
@@ -63,6 +47,24 @@ function formatContestCountdown(value) {
   return `Ends in ${hours}h`;
 }
 
+function normalizeGuess(value) {
+  return value.trim().replace(/^@/, "").toLowerCase();
+}
+
+function matchAuthorGuess(value, authors = []) {
+  const normalized = normalizeGuess(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  return (
+    authors.find((author) => normalizeGuess(author.handle) === normalized) ??
+    authors.find((author) => normalizeGuess(author.name) === normalized) ??
+    null
+  );
+}
+
 component ResultList({ items }) {
   <div class="results-list">
     for (const item of items) {
@@ -90,9 +92,10 @@ export component GameBoard({ category }) {
   const [round, setRound] = useState(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [draftAuthorId, setDraftAuthorId] = useState(null);
+  const [handleGuess, setHandleGuess] = useState("");
   const postMeta = round ? CATEGORY_META[round.post.category] : CATEGORY_META.all;
   const selectedAuthorId = round?.submission?.authorId ?? null;
+  const matchedAuthor = round ? matchAuthorGuess(handleGuess, round.authorChoices) : null;
   const hasAuthorPick = Boolean(selectedAuthorId);
   const isOpen = round?.status === "open";
   const isRevealed = round?.status === "revealed";
@@ -112,7 +115,7 @@ export component GameBoard({ category }) {
     fetchCurrentRound(category, clientId, controller.signal)
       .then((nextRound) => {
         setRound(nextRound);
-        setDraftAuthorId(null);
+        setHandleGuess("");
         setError("");
       })
       .catch((nextError) => {
@@ -134,7 +137,7 @@ export component GameBoard({ category }) {
         fetchCurrentRound(category, clientId)
           .then((nextRound) => {
             setRound(nextRound);
-            setDraftAuthorId(null);
+            setHandleGuess("");
             setError("");
           })
           .catch((nextError) => setError(nextError.message));
@@ -157,7 +160,7 @@ export component GameBoard({ category }) {
         ...payload,
       });
       setRound(nextRound);
-      setDraftAuthorId(null);
+      setHandleGuess("");
       setError("");
     } catch (nextError) {
       setError(nextError.message);
@@ -229,40 +232,43 @@ export component GameBoard({ category }) {
       </article>
 
       <div class="prompt-row">{"Who posted this?"}</div>
-      <div class="choices" aria-label="Author choices">
-        for (const [index, author] of round.authorChoices.entries()) {
-          const dataState = getChoiceState(
-            author.id,
-            round.answer?.author.id,
-            selectedAuthorId ?? draftAuthorId,
-            round.status,
-          );
-
-          <button
-            key={author.id}
-            class="choice"
-            data-state={dataState}
-            disabled={!isOpen || hasAuthorPick || pending}
-            type="button"
-            onClick={() => setDraftAuthorId(author.id)}
-          >
-            <span class="choice__index">{String(index + 1).padStart(2, "0")}</span>
-            <span class="choice__main">
-              <strong>{author.name}</strong>
-              <span>{author.handle}</span>
-            </span>
-          </button>
-        }
-      </div>
 
       if (!hasAuthorPick && isOpen) {
+        <div class="guess-box">
+          <label class="guess-label" htmlFor="handle-guess">
+            {"Type the handle"}
+          </label>
+          <input
+            id="handle-guess"
+            class="guess-input"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="@handle"
+            value={handleGuess}
+            onInput={(event) => setHandleGuess(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && matchedAuthor && !pending) {
+                submitPick({ authorId: matchedAuthor.id });
+              }
+            }}
+          />
+          <div class="guess-help">
+            {handleGuess && !matchedAuthor
+              ? "No matching live handle yet."
+              : matchedAuthor
+                ? `Matched ${matchedAuthor.handle}`
+                : "Handles are exact-match, with or without @."}
+          </div>
+        </div>
+
         <button
           class="slip-action"
-          disabled={!draftAuthorId || pending}
+          disabled={!matchedAuthor || pending}
           type="button"
-          onClick={() => submitPick({ authorId: draftAuthorId })}
+          onClick={() => submitPick({ authorId: matchedAuthor.id })}
         >
-          {draftAuthorId ? "Place slip" : "Pick a tweeter"}
+          {matchedAuthor ? "Place slip" : "Enter handle"}
         </button>
       }
 

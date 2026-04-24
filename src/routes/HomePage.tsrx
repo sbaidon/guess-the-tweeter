@@ -6,7 +6,7 @@ export component HomePage() {
     <h1>{"Guess who posted the fake tweet."}</h1>
     <p>
       {
-        "A live round shows one fake post. Pick the parody account, then guess which model wrote it."
+        "A live round shows one fake post. Type the handle, place your slip, and watch the crowd ledger after reveal."
       }
     </p>
     <Link className="button button--primary" to="/play">

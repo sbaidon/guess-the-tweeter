@@ -56,7 +56,7 @@ bun run archive:schedule
 - There is one authoritative public hourly round.
 - The public API exposes contest start/end metadata so the UI can show the archive countdown.
 - Submissions are hidden until the round reveals.
-- After reveal, the server publishes aggregate author and model pick distributions.
+- After reveal, the server publishes aggregate author pick distributions.
 
 ## Suggested provider interface
 
