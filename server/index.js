@@ -7,8 +7,6 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import {
   AUTHORS_BY_ID,
-  MODELS,
-  MODELS_BY_ID,
   POSTS_BY_ID,
   getAuthorsForMode,
   getPostsForCategory,
@@ -206,12 +204,6 @@ function createRoundRecord(category, startsAt, idPrefix = "hourly") {
   const authorChoiceIds = seededShuffle(authorPool, `${category}:${startsAt}:authors`)
     .slice(0, 3)
     .map((author) => author.id);
-  const modelChoiceIds = seededShuffle(
-    MODELS.filter((model) => model.id !== post.modelId),
-    `${category}:${startsAt}:models`,
-  )
-    .slice(0, 3)
-    .map((model) => model.id);
 
   return {
     id: `${category}:${idPrefix}:${startsAt}`,
@@ -220,9 +212,7 @@ function createRoundRecord(category, startsAt, idPrefix = "hourly") {
     authorChoiceIds: JSON.stringify(
       seededShuffle([post.authorId, ...authorChoiceIds], `${category}:${startsAt}:author-order`),
     ),
-    modelChoiceIds: JSON.stringify(
-      seededShuffle([post.modelId, ...modelChoiceIds], `${category}:${startsAt}:model-order`),
-    ),
+    modelChoiceIds: JSON.stringify([]),
     startsAt,
     locksAt: startsAt + lockOffsetMs,
     revealsAt: startsAt + revealOffsetMs,
@@ -309,7 +299,6 @@ function publicRound(round, clientId) {
   }
 
   const authorChoiceIds = parseChoices(round.author_choice_ids);
-  const modelChoiceIds = parseChoices(round.model_choice_ids);
   const submissions = statements.getSubmissions.all(round.id);
   const submission = clientId ? statements.getSubmission.get(round.id, clientId) : null;
   const payload = {
@@ -325,11 +314,9 @@ function publicRound(round, clientId) {
       text: post.text,
     },
     authorChoices: authorChoiceIds.map((authorId) => AUTHORS_BY_ID.get(authorId)),
-    modelChoices: modelChoiceIds.map((modelId) => MODELS_BY_ID.get(modelId)),
     submission: submission
       ? {
           authorId: submission.author_choice_id,
-          modelId: submission.model_choice_id,
         }
       : null,
     totals: {
@@ -346,28 +333,18 @@ function publicRound(round, clientId) {
 
   if (status === "revealed") {
     const authorCounts = buildCounts(submissions, "author_choice_id", authorChoiceIds);
-    const modelCounts = buildCounts(submissions, "model_choice_id", modelChoiceIds);
     const authorTotal = submissions.filter((item) => item.author_choice_id).length;
-    const modelTotal = submissions.filter((item) => item.model_choice_id).length;
 
     payload.answer = {
       author: AUTHORS_BY_ID.get(post.authorId),
-      model: MODELS_BY_ID.get(post.modelId),
     };
     payload.results = {
       authorTotal,
-      modelTotal,
       authors: authorChoiceIds.map((authorId) => ({
         author: AUTHORS_BY_ID.get(authorId),
         count: authorCounts.get(authorId) ?? 0,
         percentage: authorTotal ? Math.round(((authorCounts.get(authorId) ?? 0) / authorTotal) * 100) : 0,
         correct: authorId === post.authorId,
-      })),
-      models: modelChoiceIds.map((modelId) => ({
-        model: MODELS_BY_ID.get(modelId),
-        count: modelCounts.get(modelId) ?? 0,
-        percentage: modelTotal ? Math.round(((modelCounts.get(modelId) ?? 0) / modelTotal) * 100) : 0,
-        correct: modelId === post.modelId,
       })),
     };
   }
@@ -441,7 +418,6 @@ async function handleApi(request, response, url) {
 
     const body = await readJson(request);
     const authorChoiceIds = new Set(parseChoices(round.author_choice_ids));
-    const modelChoiceIds = new Set(parseChoices(round.model_choice_ids));
 
     if (!body.clientId || typeof body.clientId !== "string") {
       return badRequest(response, "Missing clientId.");
@@ -451,16 +427,12 @@ async function handleApi(request, response, url) {
       return badRequest(response, "Invalid author choice.");
     }
 
-    if (body.modelId && !modelChoiceIds.has(body.modelId)) {
-      return badRequest(response, "Invalid model choice.");
-    }
-
     const now = Date.now();
     statements.upsertSubmission.run(
       roundId,
       body.clientId,
       body.authorId ?? null,
-      body.modelId ?? null,
+      null,
       now,
       now,
     );

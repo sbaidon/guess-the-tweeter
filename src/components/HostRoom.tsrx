@@ -117,7 +117,7 @@ export component HostRoom({ category }) {
         if (round.status === "revealed") {
           <div class="feedback is-correct">
             <h2 class="feedback__title">
-              {`${round.answer.author.name} / ${round.answer.model.name}`}
+              {round.answer.author.name}
             </h2>
             <p>{round.answer.author.signature}</p>
           </div>

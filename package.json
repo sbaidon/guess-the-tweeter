@@ -13,6 +13,8 @@
     "server": "bun server/index.js",
     "start": "NODE_ENV=production bun server/index.js",
     "generate:posts": "bun scripts/generate-posts.js",
+    "archive:estimate-ai": "bun scripts/generate-ai-archive.js --estimate",
+    "archive:generate-ai": "bun scripts/generate-ai-archive.js",
     "archive:generate": "bun scripts/pregenerate-archive.js",
     "archive:schedule": "bun scripts/schedule-rounds.js",
     "build": "bunx --bun vite build",

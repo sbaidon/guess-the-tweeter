@@ -3,7 +3,6 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  MODELS,
   POSTS,
   getAuthorsForMode,
 } from "../src/gameData.js";
@@ -135,19 +134,12 @@ function createRound(post, startsAt, index) {
   const authorChoiceIds = seededShuffle(authorPool, `${startsAt}:authors`)
     .slice(0, 3)
     .map((author) => author.id);
-  const modelChoiceIds = seededShuffle(
-    MODELS.filter((model) => model.id !== post.modelId),
-    `${startsAt}:models`,
-  )
-    .slice(0, 3)
-    .map((model) => model.id);
-
   return [
     `${publicCategory}:hourly:${startsAt}`,
     publicCategory,
     post.id,
     JSON.stringify(seededShuffle([post.authorId, ...authorChoiceIds], `${startsAt}:author-order`)),
-    JSON.stringify(seededShuffle([post.modelId, ...modelChoiceIds], `${startsAt}:model-order`)),
+    JSON.stringify([]),
     startsAt,
     startsAt + lockOffsetMs,
     startsAt + revealOffsetMs,

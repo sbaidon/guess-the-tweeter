@@ -63,20 +63,17 @@ function formatContestCountdown(value) {
   return `Ends in ${hours}h`;
 }
 
-component ResultList({ items, kind }) {
+component ResultList({ items }) {
   <div class="results-list">
     for (const item of items) {
-      const label = kind === "author" ? item.author.name : item.model.name;
-      const key = kind === "author" ? item.author.id : item.model.id;
-
       <div
-        key={key}
+        key={item.author.id}
         class="result-row"
         data-correct={item.correct ? "true" : "false"}
         style={{ "--result-pct": `${item.percentage}%` }}
       >
         <div class="result-row__top">
-          <span class="result-row__name">{label}</span>
+          <span class="result-row__name">{item.author.name}</span>
           <span class="result-row__count">{`${item.percentage}%`}</span>
         </div>
         <div class="result-row__track">
@@ -94,17 +91,13 @@ export component GameBoard({ category }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [draftAuthorId, setDraftAuthorId] = useState(null);
-  const [draftModelId, setDraftModelId] = useState(null);
   const postMeta = round ? CATEGORY_META[round.post.category] : CATEGORY_META.all;
   const selectedAuthorId = round?.submission?.authorId ?? null;
-  const selectedModelId = round?.submission?.modelId ?? null;
   const hasAuthorPick = Boolean(selectedAuthorId);
-  const hasModelPick = Boolean(selectedModelId);
   const isOpen = round?.status === "open";
   const isRevealed = round?.status === "revealed";
   const authorCorrect =
     isRevealed && selectedAuthorId && selectedAuthorId === round.answer.author.id;
-  const modelCorrect = isRevealed && selectedModelId && selectedModelId === round.answer.model.id;
   const stampLabel = isRevealed
     ? authorCorrect
       ? "Paid out"
@@ -120,7 +113,6 @@ export component GameBoard({ category }) {
       .then((nextRound) => {
         setRound(nextRound);
         setDraftAuthorId(null);
-        setDraftModelId(null);
         setError("");
       })
       .catch((nextError) => {
@@ -143,7 +135,6 @@ export component GameBoard({ category }) {
           .then((nextRound) => {
             setRound(nextRound);
             setDraftAuthorId(null);
-            setDraftModelId(null);
             setError("");
           })
           .catch((nextError) => setError(nextError.message));
@@ -167,7 +158,6 @@ export component GameBoard({ category }) {
       });
       setRound(nextRound);
       setDraftAuthorId(null);
-      setDraftModelId(null);
       setError("");
     } catch (nextError) {
       setError(nextError.message);
@@ -292,78 +282,12 @@ export component GameBoard({ category }) {
         </div>
       }
 
-      if (hasAuthorPick || !isOpen) {
-        <section class="bonus-card">
-          <div class="bonus-card__header">
-            <p class="eyebrow">{"Bonus"}</p>
-            <h2>{"Which model wrote it?"}</h2>
-          </div>
-
-          <div class="choices choices--compact" aria-label="Model choices">
-            for (const [index, model] of round.modelChoices.entries()) {
-              const dataState = getChoiceState(
-                model.id,
-                round.answer?.model.id,
-                selectedModelId ?? draftModelId,
-                round.status,
-              );
-
-              <button
-                key={model.id}
-                class="choice"
-                data-state={dataState}
-                disabled={!isOpen || !hasAuthorPick || hasModelPick || pending}
-                type="button"
-                onClick={() => setDraftModelId(model.id)}
-              >
-                <span class="choice__index">{`M${index + 1}`}</span>
-                <span class="choice__main">
-                  <strong>{model.name}</strong>
-                </span>
-              </button>
-            }
-          </div>
-
-          if (!hasModelPick && hasAuthorPick && isOpen) {
-            <button
-              class="slip-action"
-              disabled={!draftModelId || pending}
-              type="button"
-              onClick={() => submitPick({ modelId: draftModelId })}
-            >
-              {draftModelId ? "Submit bonus" : "Pick a model"}
-            </button>
-          }
-
-          if (hasModelPick || isRevealed) {
-            <div
-              class={`notice ${isRevealed ? (modelCorrect ? "notice--good" : "notice--bad") : ""}`}
-            >
-              if (isRevealed) {
-                <span class="notice__label">{modelCorrect ? "Model hit" : "Model answer"}</span>
-                <strong>{round.answer.model.name}</strong>
-                <span>{round.answer.model.blurb}</span>
-              } else {
-                <span class="notice__label">{"Bonus slip"}</span>
-                <strong>{"Model pick locked."}</strong>
-              }
-            </div>
-          }
-        </section>
-      }
-
       if (isRevealed) {
         <section class="results-card">
           <h2>{"Crowd ledger"}</h2>
-          <div class="results-card__grid">
-            <div>
-              <p class="eyebrow">{"Author"}</p>
-              <ResultList items={round.results.authors} kind="author" />
-            </div>
-            <div>
-              <p class="eyebrow">{"Model"}</p>
-              <ResultList items={round.results.models} kind="model" />
-            </div>
+          <div>
+            <p class="eyebrow">{"Author"}</p>
+            <ResultList items={round.results.authors} />
           </div>
         </section>
       }

@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AUTHORS, CATEGORY_ORDER, MODELS_BY_ID } from "../src/gameData.js";
+import { AUTHORS, CATEGORY_ORDER } from "../src/gameData.js";
 
 const rootDir = path.resolve(import.meta.dir, "..");
 const dataDir = path.join(rootDir, "data");
@@ -26,10 +26,6 @@ const dryRun = args.has("dry-run");
 
 if (!CATEGORY_ORDER.includes(requestedCategory)) {
   throw new Error(`Unknown category: ${requestedCategory}`);
-}
-
-if (!MODELS_BY_ID.has(modelId)) {
-  throw new Error(`Unknown exposed model id: ${modelId}`);
 }
 
 if (!dryRun && !apiKey) {
