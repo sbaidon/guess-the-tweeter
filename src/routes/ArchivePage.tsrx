@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { CATEGORY_META, DEFAULT_LANGUAGE, LANGUAGES_BY_ID } from "../gameData";
+import { getCopy, getLocale } from "../i18n";
 import { fetchRoundHistory } from "../liveApi";
 
-function formatRoundTime(value) {
-  return new Intl.DateTimeFormat(undefined, {
+function formatRoundTime(value, language) {
+  return new Intl.DateTimeFormat(getLocale(language), {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -15,6 +16,7 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
   const [rounds, setRounds] = useState([]);
   const [error, setError] = useState("");
   const languageMeta = LANGUAGES_BY_ID.get(language);
+  const copy = getCopy(language);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -26,7 +28,7 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
       })
       .catch((nextError) => {
         if (nextError.name !== "AbortError") {
-          setError(nextError.message);
+          setError(copy.errors.loadArchive);
         }
       });
 
@@ -34,10 +36,10 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
   }, [language]);
 
   <section class="archive-card">
-    <p class="eyebrow">{"Past slips"}</p>
-    <h1>{"The ledger."}</h1>
+    <p class="eyebrow">{copy.archive.eyebrow}</p>
+    <h1>{copy.archive.title}</h1>
     <p class="archive-card__intro">
-      {`Revealed ${languageMeta?.nativeName ?? "English"} rounds stay visible here with the answer and how many players hit the handle.`}
+      {copy.archive.intro(languageMeta?.nativeName ?? "English")}
     </p>
 
     if (error) {
@@ -46,8 +48,8 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
 
     if (!error && rounds.length === 0) {
       <div class="notice">
-        <strong>{"No reveals yet."}</strong>
-        <span>{"The first archived round appears after the reveal window."}</span>
+        <strong>{copy.archive.emptyTitle}</strong>
+        <span>{copy.archive.emptyDetail}</span>
       </div>
     }
 
@@ -58,8 +60,8 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
 
           <article key={round.id} class="archive-round">
             <div class="archive-round__meta">
-              <span>{formatRoundTime(round.startsAt)}</span>
-              <span>{`${meta.name} · ${round.post.languageNativeName}`}</span>
+              <span>{formatRoundTime(round.startsAt, language)}</span>
+              <span>{`${copy.categories[round.post.category] ?? meta.name} · ${round.post.languageNativeName}`}</span>
             </div>
             <p>{round.post.text}</p>
             <div class="archive-round__answer">
@@ -67,7 +69,11 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
               <span>{round.answer.author.name}</span>
             </div>
             <div class="archive-round__winners">
-              {`${round.results.winnerCount}/${round.results.authorTotal} winners · ${round.results.winnerPercentage}% hit rate`}
+              {copy.archive.winners(
+                round.results.winnerCount,
+                round.results.authorTotal,
+                round.results.winnerPercentage,
+              )}
             </div>
           </article>
         }

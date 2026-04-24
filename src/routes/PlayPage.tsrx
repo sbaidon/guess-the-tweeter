@@ -1,9 +1,11 @@
 import { GameBoard } from "../components/GameBoard.tsrx";
 import { CATEGORY_META, DEFAULT_LANGUAGE, LANGUAGES_BY_ID } from "../gameData";
+import { getCopy } from "../i18n";
 
 export component PlayPage({ language = DEFAULT_LANGUAGE }) {
   const meta = CATEGORY_META.all;
   const languageMeta = LANGUAGES_BY_ID.get(language);
+  const copy = getCopy(language);
 
   <div
     class="play-shell"
@@ -14,7 +16,7 @@ export component PlayPage({ language = DEFAULT_LANGUAGE }) {
   >
     <GameBoard category="all" language={language} />
     <p class="language-caption">
-      {`${languageMeta?.nativeName ?? "English"} room · one hourly round`}
+      {copy.play.roomCaption(languageMeta?.nativeName ?? "English")}
     </p>
   </div>
 

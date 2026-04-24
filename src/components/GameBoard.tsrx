@@ -1,33 +1,34 @@
 import { useEffect, useState } from "react";
 import { CATEGORY_META } from "../gameData";
+import { getCopy, getLocale } from "../i18n";
 import { createRoundSocket, fetchCurrentRound, getClientId, submitRoundPick } from "../liveApi";
 
-function formatClock(value) {
-  return new Intl.DateTimeFormat(undefined, {
+function formatClock(value, language) {
+  return new Intl.DateTimeFormat(getLocale(language), {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
 }
 
-function getStatusLabel(round) {
+function getStatusLabel(round, language, copy) {
   if (!round) {
-    return "Loading";
+    return copy.game.loading;
   }
 
   if (round.status === "open") {
-    return `Open until ${formatClock(round.locksAt)}`;
+    return copy.game.openUntil(formatClock(round.locksAt, language));
   }
 
   if (round.status === "locked") {
-    return `Locked until ${formatClock(round.revealsAt)}`;
+    return copy.game.lockedUntil(formatClock(round.revealsAt, language));
   }
 
-  return "Revealed";
+  return copy.game.revealed;
 }
 
-function formatContestCountdown(value) {
+function formatContestCountdown(value, copy) {
   if (!value) {
-    return "Archive loading";
+    return copy.game.archiveLoading;
   }
 
   const remainingMs = Math.max(0, new Date(value).getTime() - Date.now());
@@ -37,14 +38,14 @@ function formatContestCountdown(value) {
   const hours = totalHours % 24;
 
   if (years > 0) {
-    return `Ends in ${years}y ${days}d`;
+    return copy.game.endsInYears(years, days);
   }
 
   if (days > 0) {
-    return `Ends in ${days}d ${hours}h`;
+    return copy.game.endsInDays(days, hours);
   }
 
-  return `Ends in ${hours}h`;
+  return copy.game.endsInHours(hours);
 }
 
 function formatDuration(ms) {
@@ -55,35 +56,38 @@ function formatDuration(ms) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function getPhaseCopy(round, now) {
+function getPhaseCopy(round, now, language, copy) {
   if (!round) {
     return {
-      label: "Loading",
+      label: copy.game.loading,
       value: "--:--",
-      detail: "Syncing the live room.",
+      detail: copy.game.syncing,
     };
   }
 
   if (round.status === "open") {
     return {
-      label: "Voting closes in",
+      label: copy.game.votingClosesIn,
       value: formatDuration(new Date(round.locksAt).getTime() - now),
-      detail: `Picks lock at ${formatClock(round.locksAt)}.`,
+      detail: copy.game.picksLockAt(formatClock(round.locksAt, language)),
     };
   }
 
   if (round.status === "locked") {
     return {
-      label: "Answer drops in",
+      label: copy.game.answerDropsIn,
       value: formatDuration(new Date(round.revealsAt).getTime() - now),
-      detail: `Crowd ledger opens at ${formatClock(round.revealsAt)}.`,
+      detail: copy.game.ledgerOpensAt(formatClock(round.revealsAt, language)),
     };
   }
 
   return {
-    label: "Answer live",
+    label: copy.game.answerLive,
     value: "00:00",
-    detail: `${round.results?.winnerCount ?? 0} winners from ${round.results?.authorTotal ?? 0} slips.`,
+    detail: copy.game.winnersFromSlips(
+      round.results?.winnerCount ?? 0,
+      round.results?.authorTotal ?? 0,
+    ),
   };
 }
 
@@ -105,7 +109,7 @@ function matchAuthorGuess(value, authors = []) {
   );
 }
 
-component ResultList({ items }) {
+component ResultList({ items, copy }) {
   <div class="results-list">
     for (const item of items) {
       <div
@@ -121,7 +125,11 @@ component ResultList({ items }) {
         <div class="result-row__track">
           <span class="result-row__fill" />
         </div>
-        <span class="result-row__mark">{item.correct ? `${item.count} picks · answer` : `${item.count} picks`}</span>
+        <span class="result-row__mark">
+          {item.correct
+            ? `${copy.game.picks(item.count)} · ${copy.game.answer}`
+            : copy.game.picks(item.count)}
+        </span>
       </div>
     }
   </div>
@@ -134,8 +142,12 @@ export component GameBoard({ category, language = "en" }) {
   const [pending, setPending] = useState(false);
   const [handleGuess, setHandleGuess] = useState("");
   const [now, setNow] = useState(Date.now());
+  const copy = getCopy(language);
   const postMeta = round ? CATEGORY_META[round.post.category] : CATEGORY_META.all;
-  const phaseCopy = getPhaseCopy(round, now);
+  const categoryName = round
+    ? copy.categories[round.post.category] ?? postMeta.name
+    : copy.categories.all;
+  const phaseCopy = getPhaseCopy(round, now, language, copy);
   const selectedAuthorId = round?.submission?.authorId ?? null;
   const matchedAuthor = round ? matchAuthorGuess(handleGuess, round.authorChoices) : null;
   const hasAuthorPick = Boolean(selectedAuthorId);
@@ -145,10 +157,10 @@ export component GameBoard({ category, language = "en" }) {
     isRevealed && selectedAuthorId && selectedAuthorId === round.answer.author.id;
   const stampLabel = isRevealed
     ? authorCorrect
-      ? "Paid out"
-      : "Voided"
+      ? copy.game.paidOut
+      : copy.game.voided
     : hasAuthorPick || round?.status === "locked"
-      ? "Placed"
+      ? copy.game.placed
       : "";
 
   useEffect(() => {
@@ -170,7 +182,7 @@ export component GameBoard({ category, language = "en" }) {
           setHandleGuess("");
           setError("");
         })
-        .catch((nextError) => setError(nextError.message));
+        .catch(() => setError(copy.errors.loadRound));
     }, Math.max(0, target - Date.now()) + 800);
 
     return () => window.clearTimeout(timeout);
@@ -187,7 +199,7 @@ export component GameBoard({ category, language = "en" }) {
       })
       .catch((nextError) => {
         if (nextError.name !== "AbortError") {
-          setError(nextError.message);
+          setError(copy.errors.loadRound);
         }
       });
 
@@ -207,7 +219,7 @@ export component GameBoard({ category, language = "en" }) {
             setHandleGuess("");
             setError("");
           })
-          .catch((nextError) => setError(nextError.message));
+          .catch(() => setError(copy.errors.loadRound));
       }
     });
 
@@ -230,7 +242,7 @@ export component GameBoard({ category, language = "en" }) {
       setHandleGuess("");
       setError("");
     } catch (nextError) {
-      setError(nextError.message);
+      setError(copy.errors.roundClosed);
     } finally {
       setPending(false);
     }
@@ -247,24 +259,26 @@ export component GameBoard({ category, language = "en" }) {
       <div class="live-strip">
         <span>
           <span class="live-dot" />
-          {"Live"}
+          {copy.game.live}
         </span>
-        <span>{round ? getStatusLabel(round) : "Loading"}</span>
+        <span>{round ? getStatusLabel(round, language, copy) : copy.game.loading}</span>
       </div>
 
       <h1>
-        {"Guess"}
+        {copy.game.titleTop}
         <br />
-        <span>{"the Tweeter."}</span>
+        <span>{copy.game.titleBottom}</span>
       </h1>
 
       <div class="genre-strip">
-        {round ? `Filed under · ${postMeta.name} · ${round.post.languageNativeName}` : "Fetching live round"}
+        {round
+          ? copy.game.filedUnder(categoryName, round.post.languageNativeName)
+          : copy.game.fetchingLiveRound}
       </div>
       <div class="contest-strip">
         {round
-          ? `${formatContestCountdown(round.contest?.endsAt)} · ${round.contest?.roundNumber ?? "?"}/${round.contest?.totalRounds ?? "?"}`
-          : "438,000 language-room archive"}
+          ? `${formatContestCountdown(round.contest?.endsAt, copy)} · ${round.contest?.roundNumber ?? "?"}/${round.contest?.totalRounds ?? "?"}`
+          : copy.game.archiveFallback}
       </div>
 
       <div class="phase-meter" data-phase={round?.status ?? "loading"}>
@@ -279,7 +293,7 @@ export component GameBoard({ category, language = "en" }) {
     }
 
     if (!round && !error) {
-      <div class="notice">{"Loading round..."}</div>
+      <div class="notice">{copy.game.loadingRound}</div>
     }
 
     if (round) {
@@ -290,7 +304,7 @@ export component GameBoard({ category, language = "en" }) {
           </div>
           <div>
             <div class="post-card__name">
-              {isRevealed ? round.answer.author.name : "— hidden —"}
+              {isRevealed ? round.answer.author.name : copy.game.hiddenName}
             </div>
             <div class={`post-card__handle ${isRevealed ? "" : "is-blurred"}`}>
               {isRevealed ? round.answer.author.handle : "@xxxxxxxxxxxx"}
@@ -299,18 +313,18 @@ export component GameBoard({ category, language = "en" }) {
         </div>
         <p>{round.post.text}</p>
         <div class="post-card__foot">
-          <span>{"Fake parody post"}</span>
-          <span>{`${round.totals.submissions} picks`}</span>
-          <span>{`${round.totals.connected} live`}</span>
+          <span>{copy.game.fakePost}</span>
+          <span>{copy.game.picks(round.totals.submissions)}</span>
+          <span>{copy.game.liveCount(round.totals.connected)}</span>
         </div>
       </article>
 
-      <div class="prompt-row">{"Who posted this?"}</div>
+      <div class="prompt-row">{copy.game.whoPosted}</div>
 
       if (!hasAuthorPick && isOpen) {
         <div class="guess-box">
           <label class="guess-label" htmlFor="handle-guess">
-            {"Type the handle"}
+            {copy.game.typeHandle}
           </label>
           <input
             id="handle-guess"
@@ -329,10 +343,10 @@ export component GameBoard({ category, language = "en" }) {
           />
           <div class="guess-help">
             {handleGuess && !matchedAuthor
-              ? "No matching live handle yet."
+              ? copy.game.noMatch
               : matchedAuthor
-                ? `Matched ${matchedAuthor.handle}`
-                : "Handles are exact-match, with or without @."}
+                ? copy.game.matched(matchedAuthor.handle)
+                : copy.game.handleHelp}
           </div>
         </div>
 
@@ -342,7 +356,7 @@ export component GameBoard({ category, language = "en" }) {
           type="button"
           onClick={() => submitPick({ authorId: matchedAuthor.id })}
         >
-          {matchedAuthor ? "Place slip" : "Enter handle"}
+          {matchedAuthor ? copy.game.placeSlip : copy.game.enterHandle}
         </button>
       }
 
@@ -351,29 +365,29 @@ export component GameBoard({ category, language = "en" }) {
           class={`notice ${isRevealed ? (authorCorrect ? "notice--good" : "notice--bad") : ""}`}
         >
           if (isRevealed) {
-            <span class="notice__label">{authorCorrect ? "You were right" : "The answer was"}</span>
+            <span class="notice__label">{authorCorrect ? copy.game.youWereRight : copy.game.answerWas}</span>
             <strong>{round.answer.author.name}</strong>
             <span>{round.answer.author.signature}</span>
           } else {
-            <span class="notice__label">{hasAuthorPick ? "Slip placed" : "Round locked"}</span>
-            <strong>{hasAuthorPick ? "Your pick is locked." : "No more picks."}</strong>
-            <span>{`Reveal at ${formatClock(round.revealsAt)}.`}</span>
+            <span class="notice__label">{hasAuthorPick ? copy.game.slipPlaced : copy.game.roundLocked}</span>
+            <strong>{hasAuthorPick ? copy.game.pickLocked : copy.game.noMorePicks}</strong>
+            <span>{copy.game.revealAt(formatClock(round.revealsAt, language))}</span>
           }
         </div>
       }
 
       if (isRevealed) {
         <section class="winner-card">
-          <p class="eyebrow">{"Winners"}</p>
+          <p class="eyebrow">{copy.game.winners}</p>
           <strong>{`${round.results.winnerCount}/${round.results.authorTotal}`}</strong>
-          <span>{`${round.results.winnerPercentage}% of slips hit ${round.answer.author.handle}.`}</span>
+          <span>{copy.game.hitHandle(round.results.winnerPercentage, round.answer.author.handle)}</span>
         </section>
 
         <section class="results-card">
-          <h2>{"Crowd ledger"}</h2>
+          <h2>{copy.game.crowdLedger}</h2>
           <div>
-            <p class="eyebrow">{"Author"}</p>
-            <ResultList items={round.results.authors} />
+            <p class="eyebrow">{copy.game.author}</p>
+            <ResultList items={round.results.authors} copy={copy} />
           </div>
         </section>
       }

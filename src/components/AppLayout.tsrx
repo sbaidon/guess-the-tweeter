@@ -1,20 +1,22 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { DEFAULT_LANGUAGE, LANGUAGES, LANGUAGES_BY_ID } from "../gameData";
+import { getCopy } from "../i18n";
 
 export component AppLayout({ children }) {
   const currentPath = useRouterState({ select: (state) => state.location.pathname });
   const [, , pathLanguage] = currentPath.split("/");
   const currentLanguage = LANGUAGES_BY_ID.has(pathLanguage) ? pathLanguage : DEFAULT_LANGUAGE;
+  const copy = getCopy(currentLanguage);
   const languageRoute = currentPath.startsWith("/archive") ? "/archive/$language" : "/play/$language";
 
   <div class="app-shell">
     <header class="topbar">
       <div class="page-shell page-shell--topbar">
         <Link className="brand" to="/">
-          {"Guess the Tweeter"}
+          {copy.brand}
         </Link>
 
-        <nav class="topnav" aria-label="Primary">
+        <nav class="topnav" aria-label={copy.nav.play}>
           <Link
             activeProps={{ "data-active": "true" }}
             inactiveProps={{ "data-active": "false" }}
@@ -22,7 +24,7 @@ export component AppLayout({ children }) {
             params={{ language: currentLanguage }}
             to="/play/$language"
           >
-            {"Play"}
+            {copy.nav.play}
           </Link>
           <Link
             activeProps={{ "data-active": "true" }}
@@ -31,7 +33,7 @@ export component AppLayout({ children }) {
             params={{ language: currentLanguage }}
             to="/archive/$language"
           >
-            {"Archive"}
+            {copy.nav.archive}
           </Link>
         </nav>
       </div>
