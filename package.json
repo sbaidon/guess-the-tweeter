@@ -18,6 +18,8 @@
     "archive:generate-ai": "bun scripts/generate-ai-archive.js",
     "archive:generate": "bun scripts/pregenerate-archive.js",
     "archive:schedule": "bun scripts/schedule-rounds.js",
+    "db:backup": "bun scripts/backup-sqlite.js",
+    "db:restore": "bun scripts/restore-sqlite.js",
     "build": "bunx --bun vite build",
     "preview": "bunx --bun vite preview"
   },

@@ -91,6 +91,10 @@ type CountRow = {
   count: number;
 };
 
+type HealthRow = {
+  ok: number;
+};
+
 type TableInfoRow = {
   name: string;
 };
@@ -159,12 +163,16 @@ const distDir = path.join(rootDir, "dist");
 const dbPath = process.env.DATABASE_PATH ?? path.join(dataDir, "guess-the-tweeter.sqlite");
 const port = Number(process.env.PORT ?? 8787);
 const adminToken = process.env.ADMIN_TOKEN ?? "";
+const trustProxy = process.env.TRUST_PROXY === "true";
+const submissionRateLimitWindowMs = Number(process.env.SUBMISSION_RATE_LIMIT_WINDOW_MS ?? 60_000);
+const submissionRateLimitMax = Number(process.env.SUBMISSION_RATE_LIMIT_MAX ?? 20);
 const publicCategory: CategoryKey = "all";
 const defaultLanguage: LanguageKey = DEFAULT_LANGUAGE;
 const roundLengthMs = 60 * 60 * 1000;
 const lockOffsetMs = 50 * 60 * 1000;
 const revealOffsetMs = 55 * 60 * 1000;
 const defaultContestYears = Number(process.env.CONTEST_YEARS ?? 10);
+const processStartedAt = Date.now();
 
 fs.mkdirSync(dataDir, { recursive: true });
 
@@ -255,6 +263,7 @@ const statements = {
   `),
   getSubmissions: db.prepare("SELECT * FROM submissions WHERE round_id = ?"),
   countSubmissions: db.prepare("SELECT COUNT(*) AS count FROM submissions WHERE round_id = ?"),
+  healthCheck: db.prepare("SELECT 1 AS ok"),
   getPastRounds: db.prepare(`
     SELECT *
     FROM rounds
@@ -568,6 +577,77 @@ function ensureGeneratedPostsLanguageColumn(): void {
   }
 }
 
+function logInfo(message: string, meta: Record<string, unknown> = {}): void {
+  console.log(JSON.stringify({ level: "info", message, time: new Date().toISOString(), ...meta }));
+}
+
+function logError(message: string, error: unknown, meta: Record<string, unknown> = {}): void {
+  console.error(
+    JSON.stringify({
+      level: "error",
+      message,
+      time: new Date().toISOString(),
+      error: error instanceof Error ? error.message : String(error),
+      ...meta,
+    }),
+  );
+}
+
+function getClientIp(request: IncomingMessage): string {
+  const forwardedFor = request.headers["x-forwarded-for"];
+
+  if (trustProxy && typeof forwardedFor === "string") {
+    return forwardedFor.split(",")[0]?.trim() || request.socket.remoteAddress || "unknown";
+  }
+
+  return request.socket.remoteAddress || "unknown";
+}
+
+const submissionAttempts = new Map<string, { count: number; resetsAt: number }>();
+
+function checkSubmissionRateLimit(request: IncomingMessage, clientId: string): boolean {
+  const now = Date.now();
+  const key = `${getClientIp(request)}:${clientId}`;
+  const existing = submissionAttempts.get(key);
+
+  if (!existing || now >= existing.resetsAt) {
+    submissionAttempts.set(key, {
+      count: 1,
+      resetsAt: now + submissionRateLimitWindowMs,
+    });
+    return true;
+  }
+
+  if (existing.count >= submissionRateLimitMax) {
+    return false;
+  }
+
+  existing.count += 1;
+  return true;
+}
+
+function pruneSubmissionRateLimits(): void {
+  const now = Date.now();
+
+  for (const [key, value] of submissionAttempts) {
+    if (now >= value.resetsAt) {
+      submissionAttempts.delete(key);
+    }
+  }
+}
+
+function healthPayload(): Record<string, unknown> {
+  const dbHealth = statements.healthCheck.get() as HealthRow;
+
+  return {
+    ok: dbHealth.ok === 1,
+    uptimeSeconds: Math.round((Date.now() - processStartedAt) / 1000),
+    languages: LANGUAGE_ORDER,
+    sockets: sockets.size,
+    rateLimitBuckets: submissionAttempts.size,
+  };
+}
+
 function json(response: ServerResponse, statusCode: number, body: unknown): void {
   const payload = JSON.stringify(body);
   response.writeHead(statusCode, {
@@ -653,6 +733,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
 
     if (!body.clientId || typeof body.clientId !== "string") {
       return badRequest(response, "Missing clientId.");
+    }
+
+    if (!checkSubmissionRateLimit(request, body.clientId)) {
+      return json(response, 429, { error: "rate_limited" });
     }
 
     const authorId = typeof body.authorId === "string" ? body.authorId : null;
@@ -746,8 +830,27 @@ function serveStatic(request: IncomingMessage, response: ServerResponse, url: UR
 }
 
 const server = http.createServer(async (request, response) => {
+  const startedAt = Date.now();
+
+  response.on("finish", () => {
+    const pathname = request.url ? new URL(request.url, `http://${request.headers.host}`).pathname : "";
+
+    if (pathname === "/healthz" || pathname.startsWith("/api/")) {
+      logInfo("request", {
+        durationMs: Date.now() - startedAt,
+        method: request.method,
+        path: pathname,
+        statusCode: response.statusCode,
+      });
+    }
+  });
+
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
+
+    if (request.method === "GET" && url.pathname === "/healthz") {
+      return json(response, 200, healthPayload());
+    }
 
     if (url.pathname.startsWith("/api/")) {
       await handleApi(request, response, url);
@@ -756,7 +859,7 @@ const server = http.createServer(async (request, response) => {
 
     serveStatic(request, response, url);
   } catch (error) {
-    console.error(error);
+    logError("request_failed", error);
     json(response, 500, { error: "internal_server_error" });
   }
 });
@@ -802,6 +905,11 @@ for (const language of LANGUAGE_ORDER) {
   ensureCurrentRoundForLanguage(publicCategory, language);
 }
 
+setInterval(pruneSubmissionRateLimits, submissionRateLimitWindowMs).unref?.();
+
 server.listen(port, "0.0.0.0", () => {
-  console.log(`Guess the Tweeter server listening on http://127.0.0.1:${port}`);
+  logInfo("server_listening", {
+    databasePath: dbPath,
+    port,
+  });
 });

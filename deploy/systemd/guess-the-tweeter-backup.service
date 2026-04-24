@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up Guess the Tweeter SQLite database
+
+[Service]
+Type=oneshot
+User=guess
+Group=guess
+WorkingDirectory=/opt/guess-the-tweeter/current
+EnvironmentFile=/etc/guess-the-tweeter/guess-the-tweeter.env
+ExecStart=/usr/local/bin/bun run db:backup

@@ -38,6 +38,15 @@ bun start
 ```
 
 Production serves the built frontend and API from the same Bun process. SQLite data is written to `data/guess-the-tweeter.sqlite` by default.
+For Hetzner/systemd deployment, reverse proxy config, health checks, and backups, see [docs/deploy-hetzner.md](./docs/deploy-hetzner.md).
+
+Operational commands:
+
+```bash
+bun run typecheck:server
+bun run db:backup
+bun run db:restore -- --file=/path/to/backup.sqlite --force
+```
 
 ## Content generation direction
 

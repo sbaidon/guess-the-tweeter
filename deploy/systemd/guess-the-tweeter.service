@@ -1,0 +1,24 @@
+[Unit]
+Description=Guess the Tweeter Bun app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=guess
+Group=guess
+WorkingDirectory=/opt/guess-the-tweeter/current
+EnvironmentFile=/etc/guess-the-tweeter/guess-the-tweeter.env
+ExecStart=/usr/local/bin/bun run start
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/guess-the-tweeter /var/backups/guess-the-tweeter
+
+[Install]
+WantedBy=multi-user.target

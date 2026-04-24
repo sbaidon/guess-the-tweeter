@@ -1,30 +1,139 @@
-# Hetzner Deploy Notes
+# Hetzner Deploy Runbook
 
-This MVP is intentionally small enough for one Hetzner VM.
+This app is designed to run as one Bun process behind a reverse proxy. Gameplay should stay cheap: SQLite read/write plus WebSocket fanout. AI generation stays offline.
 
-## Runtime
+## Target Layout
 
-- Bun `1.3.9` or newer
-- SQLite file stored on the VM disk
-- One Bun process for static assets, API, and WebSockets
-- Reverse proxy with HTTPS in front of the Bun process
+- App checkout: `/opt/guess-the-tweeter/current`
+- Environment file: `/etc/guess-the-tweeter/guess-the-tweeter.env`
+- SQLite data: `/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite`
+- Backups: `/var/backups/guess-the-tweeter`
+- App port: `127.0.0.1:8787`
+- Public proxy: Caddy or nginx with HTTPS
 
-## Environment
-
-- `PORT=8787`
-- `DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite`
-- `ADMIN_TOKEN=<long random token>`
-
-## Process
+## First Server Setup
 
 ```bash
-bun install --frozen-lockfile
-bun run build
-bun start
+sudo adduser --system --group --home /opt/guess-the-tweeter guess
+sudo mkdir -p /opt/guess-the-tweeter /etc/guess-the-tweeter /var/lib/guess-the-tweeter /var/backups/guess-the-tweeter
+sudo chown -R guess:guess /opt/guess-the-tweeter /var/lib/guess-the-tweeter /var/backups/guess-the-tweeter
 ```
 
-For a durable setup, run the process under `systemd` and proxy traffic with Caddy or nginx.
+Install Bun system-wide or ensure `/usr/local/bin/bun` points to the Bun binary used by systemd.
 
-## Scaling Boundary
+```bash
+curl -fsSL https://bun.sh/install | bash
+sudo ln -sf "$HOME/.bun/bin/bun" /usr/local/bin/bun
+```
 
-This should be fine for the early version because the expensive work is offline content generation. The first pressure point will be WebSocket fanout, not AI cost. When that happens, split the live updates behind Redis pub/sub or move rooms onto separate app instances.
+## App Deploy
+
+```bash
+sudo -u guess git clone https://github.com/sbaidon/guess-the-tweeter.git /opt/guess-the-tweeter/current
+cd /opt/guess-the-tweeter/current
+sudo -u guess bun install --frozen-lockfile
+sudo -u guess bun run typecheck:server
+sudo -u guess bun run build
+```
+
+Create `/etc/guess-the-tweeter/guess-the-tweeter.env` from `deploy/env/guess-the-tweeter.env.example`.
+
+Required production values:
+
+```env
+NODE_ENV=production
+PORT=8787
+DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite
+BACKUP_DIR=/var/backups/guess-the-tweeter
+ADMIN_TOKEN=replace-with-a-long-random-token
+TRUST_PROXY=true
+SUBMISSION_RATE_LIMIT_WINDOW_MS=60000
+SUBMISSION_RATE_LIMIT_MAX=20
+CONTEST_YEARS=10
+```
+
+## systemd
+
+```bash
+sudo cp deploy/systemd/guess-the-tweeter.service /etc/systemd/system/
+sudo cp deploy/systemd/guess-the-tweeter-backup.service /etc/systemd/system/
+sudo cp deploy/systemd/guess-the-tweeter-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now guess-the-tweeter.service
+sudo systemctl enable --now guess-the-tweeter-backup.timer
+```
+
+Useful commands:
+
+```bash
+sudo systemctl status guess-the-tweeter
+sudo journalctl -u guess-the-tweeter -f
+sudo systemctl restart guess-the-tweeter
+sudo systemctl list-timers | grep guess-the-tweeter
+```
+
+## Reverse Proxy
+
+Caddy is the simplest option because it handles TLS automatically.
+
+```bash
+sudo cp deploy/caddy/Caddyfile /etc/caddy/Caddyfile
+sudo sed -i 's/guess-the-tweeter.example.com/YOUR_DOMAIN/g' /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+If using nginx, copy `deploy/nginx/guess-the-tweeter.conf`, replace the domain, enable the site, and put Certbot or another TLS layer in front of it.
+
+## Health Check
+
+The app exposes:
+
+```bash
+curl -fsS http://127.0.0.1:8787/healthz
+```
+
+Expected shape:
+
+```json
+{
+  "ok": true,
+  "uptimeSeconds": 123,
+  "languages": ["en", "es", "fr", "pt", "de"],
+  "sockets": 0,
+  "rateLimitBuckets": 0
+}
+```
+
+## Backups
+
+Manual backup:
+
+```bash
+sudo -u guess env DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite BACKUP_DIR=/var/backups/guess-the-tweeter bun run db:backup
+```
+
+The included systemd timer runs this hourly. Ship `/var/backups/guess-the-tweeter` off-box with restic, rsync, Hetzner Storage Box, or object storage. A local-only backup is not enough.
+
+Restore flow:
+
+```bash
+sudo systemctl stop guess-the-tweeter
+sudo -u guess env DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite bun run db:restore -- --file=/var/backups/guess-the-tweeter/backup.sqlite --force
+sudo systemctl start guess-the-tweeter
+```
+
+## Updating
+
+```bash
+cd /opt/guess-the-tweeter/current
+sudo -u guess git pull --ff-only
+sudo -u guess bun install --frozen-lockfile
+sudo -u guess bun run typecheck:server
+sudo -u guess bun run build
+sudo systemctl restart guess-the-tweeter
+curl -fsS http://127.0.0.1:8787/healthz
+```
+
+## Current Scaling Boundary
+
+One VM is fine for early traffic. The first likely pressure point is WebSocket fanout, not AI cost. If one process stops being enough, split live rooms across instances and add Redis pub/sub or another shared broadcast layer.
