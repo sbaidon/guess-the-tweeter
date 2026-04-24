@@ -161,6 +161,15 @@ type ChannelSocket = WebSocket & {
   category?: LanguageKey;
 };
 
+class RequestError extends Error {
+  constructor(
+    readonly statusCode: number,
+    readonly code: string,
+  ) {
+    super(code);
+  }
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 const dataDir = path.join(rootDir, "data");
@@ -176,6 +185,7 @@ const roomSnapshotIntervalMs = Number(process.env.ROOM_SNAPSHOT_INTERVAL_MS ?? 2
 const requestLogSampleRate = Number(
   process.env.REQUEST_LOG_SAMPLE_RATE ?? (process.env.NODE_ENV === "production" ? 0 : 1),
 );
+const maxJsonBodyBytes = Number(process.env.MAX_JSON_BODY_BYTES ?? 8_192);
 const publicCategory: CategoryKey = "all";
 const defaultLanguage: LanguageKey = DEFAULT_LANGUAGE;
 const roundLengthMs = 60 * 60 * 1000;
@@ -671,6 +681,13 @@ function getClientIp(request: IncomingMessage): string {
   return request.socket.remoteAddress || "unknown";
 }
 
+function safeTokenEquals(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  return leftBuffer.byteLength === rightBuffer.byteLength && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
 const submissionAttempts = new Map<string, { count: number; resetsAt: number }>();
 
 function checkSubmissionRateLimit(request: IncomingMessage, clientId: string): boolean {
@@ -733,11 +750,32 @@ function badRequest(response: ServerResponse, message: string): void {
   json(response, 400, { error: "bad_request", message });
 }
 
+function payloadTooLarge(response: ServerResponse): void {
+  json(response, 413, { error: "payload_too_large" });
+}
+
+function unsupportedMediaType(response: ServerResponse): void {
+  json(response, 415, { error: "unsupported_media_type" });
+}
+
+function isJsonRequest(request: IncomingMessage): boolean {
+  const contentType = request.headers["content-type"];
+  return typeof contentType === "string" && contentType.toLowerCase().includes("application/json");
+}
+
 async function readJson(request: IncomingMessage): Promise<SubmissionBody> {
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
 
   for await (const chunk of request) {
-    chunks.push(chunk);
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+
+    if (totalBytes > maxJsonBodyBytes) {
+      throw new RequestError(413, "payload_too_large");
+    }
+
+    chunks.push(buffer);
   }
 
   if (chunks.length === 0) {
@@ -748,11 +786,13 @@ async function readJson(request: IncomingMessage): Promise<SubmissionBody> {
 }
 
 function requireAdmin(request: IncomingMessage, response: ServerResponse): boolean {
-  if (!adminToken) {
-    return true;
-  }
+  const providedToken = request.headers["x-admin-token"];
 
-  if (request.headers["x-admin-token"] === adminToken) {
+  if (
+    adminToken &&
+    typeof providedToken === "string" &&
+    safeTokenEquals(providedToken, adminToken)
+  ) {
     return true;
   }
 
@@ -792,6 +832,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       return notFound(response);
     }
 
+    if (!isJsonRequest(request)) {
+      return unsupportedMediaType(response);
+    }
+
     if (computeStatus(round) !== "open") {
       return json(response, 409, { error: "round_closed" });
     }
@@ -801,6 +845,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
 
     if (!body.clientId || typeof body.clientId !== "string") {
       return badRequest(response, "Missing clientId.");
+    }
+
+    if (body.clientId.length > 128) {
+      return badRequest(response, "clientId is too long.");
     }
 
     if (!checkSubmissionRateLimit(request, body.clientId)) {
@@ -927,6 +975,14 @@ const server = http.createServer(async (request, response) => {
 
     serveStatic(request, response, url);
   } catch (error) {
+    if (error instanceof RequestError) {
+      if (error.statusCode === 413) {
+        return payloadTooLarge(response);
+      }
+
+      return json(response, error.statusCode, { error: error.code });
+    }
+
     logError("request_failed", error);
     json(response, 500, { error: "internal_server_error" });
   }
