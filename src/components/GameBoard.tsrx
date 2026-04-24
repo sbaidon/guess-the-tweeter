@@ -41,6 +41,28 @@ function getStatusLabel(round) {
   return "Revealed";
 }
 
+function formatContestCountdown(value) {
+  if (!value) {
+    return "Archive loading";
+  }
+
+  const remainingMs = Math.max(0, new Date(value).getTime() - Date.now());
+  const totalHours = Math.floor(remainingMs / (60 * 60 * 1000));
+  const years = Math.floor(totalHours / (24 * 365));
+  const days = Math.floor((totalHours % (24 * 365)) / 24);
+  const hours = totalHours % 24;
+
+  if (years > 0) {
+    return `Ends in ${years}y ${days}d`;
+  }
+
+  if (days > 0) {
+    return `Ends in ${days}d ${hours}h`;
+  }
+
+  return `Ends in ${hours}h`;
+}
+
 component ResultList({ items, kind }) {
   <div class="results-list">
     for (const item of items) {
@@ -178,6 +200,11 @@ export component GameBoard({ category }) {
 
       <div class="genre-strip">
         {round ? `Filed under · ${postMeta.name}` : "Fetching live round"}
+      </div>
+      <div class="contest-strip">
+        {round
+          ? `${formatContestCountdown(round.contest?.endsAt)} · ${round.contest?.roundNumber ?? "?"}/${round.contest?.totalRounds ?? "?"}`
+          : "87,600 round archive"}
       </div>
     </header>
 

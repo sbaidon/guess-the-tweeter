@@ -25,6 +25,7 @@ const publicCategory = "all";
 const roundLengthMs = 60 * 60 * 1000;
 const lockOffsetMs = 50 * 60 * 1000;
 const revealOffsetMs = 55 * 60 * 1000;
+const defaultContestYears = Number(process.env.CONTEST_YEARS ?? 10);
 
 fs.mkdirSync(dataDir, { recursive: true });
 
@@ -117,6 +118,31 @@ const statements = {
   getGeneratedPost: db.prepare("SELECT * FROM generated_posts WHERE id = ? AND status = 'approved'"),
   getGeneratedPosts: db.prepare("SELECT * FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC"),
 };
+
+function addYears(value, years) {
+  const date = new Date(value);
+  date.setUTCFullYear(date.getUTCFullYear() + years);
+  return date.getTime();
+}
+
+function ensureContestSettings(now = Date.now()) {
+  const startSetting = statements.getSetting.get("contest:start_at");
+  const endSetting = statements.getSetting.get("contest:end_at");
+
+  if (startSetting && endSetting) {
+    return {
+      startsAt: Number(startSetting.value),
+      endsAt: Number(endSetting.value),
+    };
+  }
+
+  const startsAt = currentHourStart(now);
+  const endsAt = addYears(startsAt, defaultContestYears);
+
+  statements.setSetting.run("contest:start_at", String(startsAt));
+  statements.setSetting.run("contest:end_at", String(endsAt));
+  return { startsAt, endsAt };
+}
 
 function hashToInt(value) {
   const hash = crypto.createHash("sha256").update(value).digest("hex").slice(0, 12);
@@ -276,6 +302,7 @@ function buildCounts(submissions, field, choiceIds) {
 function publicRound(round, clientId) {
   const status = computeStatus(round);
   const post = getPlayablePost(round.post_id);
+  const contest = ensureContestSettings();
 
   if (!post) {
     throw new Error(`Post not found for round ${round.id}: ${round.post_id}`);
@@ -308,6 +335,12 @@ function publicRound(round, clientId) {
     totals: {
       submissions: statements.countSubmissions.get(round.id).count,
       connected: countConnections(round.category),
+    },
+    contest: {
+      startsAt: new Date(contest.startsAt).toISOString(),
+      endsAt: new Date(contest.endsAt).toISOString(),
+      roundNumber: Math.max(1, Math.floor((round.starts_at - contest.startsAt) / roundLengthMs) + 1),
+      totalRounds: Math.max(1, Math.ceil((contest.endsAt - contest.startsAt) / roundLengthMs)),
     },
   };
 
@@ -557,6 +590,7 @@ wss.on("connection", (socket, request) => {
   });
 });
 
+ensureContestSettings();
 ensureCurrentRound(publicCategory);
 
 server.listen(port, "0.0.0.0", () => {

@@ -23,6 +23,15 @@ Instead:
    - moderation status
 4. Keep runtime gameplay on stored prompts only.
 
+For a no-provider baseline, the repo also has procedural archive tooling:
+
+```bash
+bun run archive:generate
+bun run archive:schedule
+```
+
+The default target is `24 * 365 * 10 = 87,600` approved posts and 87,600 hourly rounds.
+
 ## Why this is cheaper
 
 - Gameplay stays read-only and cache-friendly.
@@ -35,6 +44,7 @@ Instead:
 - A single Bun process serves HTTP, static assets, and WebSockets.
 - SQLite stores generated posts, rounds, and submissions.
 - There is one authoritative public hourly round.
+- The public API exposes contest start/end metadata so the UI can show the archive countdown.
 - Submissions are hidden until the round reveals.
 - After reveal, the server publishes aggregate author and model pick distributions.
 

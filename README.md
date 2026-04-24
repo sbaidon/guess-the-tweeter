@@ -13,6 +13,7 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 - Author guesses plus a bonus round for guessing which model generated the parody
 - One authoritative public contest per hour
 - DeepSeek-compatible offline generation worker
+- 10-year archive tooling for `87,600` hourly rounds
 - MIT-licensed open-source setup
 
 ## Run it
@@ -49,6 +50,15 @@ Generate approved posts:
 ```bash
 DEEPSEEK_API_KEY=sk-... bun run generate:posts -- --count=12
 ```
+
+Generate and schedule a full 10-year procedural archive:
+
+```bash
+bun run archive:generate
+bun run archive:schedule
+```
+
+That creates `24 * 365 * 10 = 87,600` approved post candidates and schedules the same number of hourly rounds in SQLite. Runtime gameplay still only reads the current scheduled hour.
 
 Useful generation environment variables:
 

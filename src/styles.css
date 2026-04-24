@@ -205,6 +205,16 @@ a {
   text-transform: uppercase;
 }
 
+.contest-strip {
+  padding: 10px 0 0;
+  color: var(--red);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
 .stamp {
   position: absolute;
   top: 98px;
