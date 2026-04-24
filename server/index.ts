@@ -172,6 +172,9 @@ const trustProxy = process.env.TRUST_PROXY === "true";
 const submissionRateLimitWindowMs = Number(process.env.SUBMISSION_RATE_LIMIT_WINDOW_MS ?? 60_000);
 const submissionRateLimitMax = Number(process.env.SUBMISSION_RATE_LIMIT_MAX ?? 20);
 const roomSnapshotIntervalMs = Number(process.env.ROOM_SNAPSHOT_INTERVAL_MS ?? 2_000);
+const requestLogSampleRate = Number(
+  process.env.REQUEST_LOG_SAMPLE_RATE ?? (process.env.NODE_ENV === "production" ? 0 : 1),
+);
 const publicCategory: CategoryKey = "all";
 const defaultLanguage: LanguageKey = DEFAULT_LANGUAGE;
 const roundLengthMs = 60 * 60 * 1000;
@@ -896,8 +899,10 @@ const server = http.createServer(async (request, response) => {
 
   response.on("finish", () => {
     const pathname = request.url ? new URL(request.url, `http://${request.headers.host}`).pathname : "";
+    const shouldSample = requestLogSampleRate > 0 && Math.random() < requestLogSampleRate;
+    const shouldLog = response.statusCode >= 400 || shouldSample;
 
-    if (pathname === "/healthz" || pathname.startsWith("/api/")) {
+    if (shouldLog && (pathname === "/healthz" || pathname.startsWith("/api/"))) {
       logInfo("request", {
         durationMs: Date.now() - startedAt,
         method: request.method,
