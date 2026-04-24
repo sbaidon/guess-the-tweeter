@@ -1,4 +1,4 @@
-export const CATEGORY_ORDER = ["all", "tech", "politics", "sports", "celebrities", "random"];
+export const CATEGORY_ORDER = ["all", "tech", "politics", "sports", "celebrities"];
 
 export const LANGUAGES = [
   {
@@ -70,13 +70,6 @@ export const CATEGORY_META = {
     accent: "#d6482a",
     soft: "rgba(214, 72, 42, 0.18)",
     heroTitle: "Notes-app diplomacy and fame-cycle meteorology.",
-  },
-  random: {
-    name: "Random People",
-    blurb: "HOA veterans, airport philosophers, recipe commenters, and neighborhood lore.",
-    accent: "#0e1f3a",
-    soft: "rgba(14, 31, 58, 0.18)",
-    heroTitle: "The common poster, operating at uncommon volume.",
   },
 };
 
@@ -984,6 +977,9 @@ export const POSTS = [
 
 const categoryKeySet = new Set(CATEGORY_ORDER);
 const scopedCategories = CATEGORY_ORDER.filter((category) => category !== "all");
+const isPlayableCategory = (category) => categoryKeySet.has(category) && category !== "all";
+const playableAuthors = AUTHORS.filter((author) => isPlayableCategory(author.category));
+const playablePosts = POSTS.filter((post) => isPlayableCategory(post.category));
 
 export const AUTHORS_BY_ID = new Map(AUTHORS.map((author) => [author.id, author]));
 export const LANGUAGES_BY_ID = new Map(LANGUAGES.map((language) => [language.id, language]));
@@ -992,19 +988,19 @@ export const POSTS_BY_ID = new Map(POSTS.map((post) => [post.id, post]));
 export const AUTHORS_BY_CATEGORY = new Map(
   scopedCategories.map((category) => [
     category,
-    AUTHORS.filter((author) => author.category === category),
+    playableAuthors.filter((author) => author.category === category),
   ]),
 );
 export const AUTHORS_BY_LANGUAGE = new Map(
   LANGUAGE_ORDER.map((language) => [
     language,
-    AUTHORS.filter((author) => getAuthorLanguages(author).includes(language)),
+    playableAuthors.filter((author) => getAuthorLanguages(author).includes(language)),
   ]),
 );
 export const POSTS_BY_CATEGORY = new Map(
   scopedCategories.map((category) => [
     category,
-    POSTS.filter((post) => post.category === category),
+    playablePosts.filter((post) => post.category === category),
   ]),
 );
 
@@ -1017,7 +1013,7 @@ export function isLanguageKey(value) {
 }
 
 export function getPostsForCategory(category) {
-  return category === "all" ? POSTS : POSTS_BY_CATEGORY.get(category) ?? POSTS;
+  return category === "all" ? playablePosts : POSTS_BY_CATEGORY.get(category) ?? playablePosts;
 }
 
 export function getAuthorLanguages(author) {
@@ -1029,7 +1025,7 @@ export function getAuthorsForLanguage(language = DEFAULT_LANGUAGE) {
 }
 
 export function getAuthorsForMode(category, postCategory, language = DEFAULT_LANGUAGE) {
-  const categoryAuthors = category === "all" ? AUTHORS : AUTHORS_BY_CATEGORY.get(postCategory) ?? AUTHORS;
+  const categoryAuthors = category === "all" ? playableAuthors : AUTHORS_BY_CATEGORY.get(postCategory) ?? playableAuthors;
   const languageAuthors = categoryAuthors.filter((author) => getAuthorLanguages(author).includes(language));
 
   if (languageAuthors.length >= 4) {

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   AUTHORS_BY_ID,
+  CATEGORY_ORDER,
   DEFAULT_LANGUAGE,
   LANGUAGE_ORDER,
   POSTS,
@@ -115,7 +116,8 @@ const generatedPosts = db
     text: post.text,
   }));
 
-const playablePosts = [...POSTS, ...generatedPosts];
+const playableCategories = new Set(CATEGORY_ORDER.filter((category) => category !== "all"));
+const playablePosts = [...POSTS, ...generatedPosts].filter((post) => playableCategories.has(post.category));
 const scheduleLanguages = requestedLanguage === "all" ? LANGUAGE_ORDER : [requestedLanguage];
 
 if (!playablePosts.length) {
@@ -191,7 +193,10 @@ for (let index = 0; index < roundCount; index += 1) {
   const startsAt = startAt + index * roundLengthMs;
   for (const language of scheduleLanguages) {
     const languagePosts = playablePosts.filter(
-      (post) => (post.language ?? DEFAULT_LANGUAGE) === language && postAuthorMatchesLanguage(post, language),
+      (post) =>
+        playableCategories.has(post.category) &&
+        (post.language ?? DEFAULT_LANGUAGE) === language &&
+        postAuthorMatchesLanguage(post, language),
     );
     const postPool = languagePosts.length ? languagePosts : playablePosts;
     const post = {

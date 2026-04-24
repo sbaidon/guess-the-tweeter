@@ -64,6 +64,9 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
               <span>{`${copy.categories[round.post.category] ?? meta.name} · ${round.post.languageNativeName}`}</span>
             </div>
             <p>{round.post.text}</p>
+            <div class="fiction-notice fiction-notice--archive">
+              {copy.game.fictionNotice}
+            </div>
             <div class="archive-round__answer">
               <strong>{round.answer.author.handle}</strong>
               <span>{round.answer.author.name}</span>

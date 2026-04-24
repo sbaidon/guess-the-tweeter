@@ -9,6 +9,7 @@ import { WebSocketServer } from "ws";
 import type { WebSocket } from "ws";
 import {
   AUTHORS_BY_ID,
+  CATEGORY_ORDER,
   DEFAULT_LANGUAGE,
   LANGUAGE_ORDER,
   LANGUAGES_BY_ID,
@@ -18,7 +19,7 @@ import {
   getPostsForCategory,
 } from "../src/gameData.js";
 
-type CategoryKey = "all" | "tech" | "politics" | "sports" | "celebrities" | "random";
+type CategoryKey = "all" | "tech" | "politics" | "sports" | "celebrities";
 type LanguageKey = string;
 type RoundStatus = "open" | "locked" | "revealed";
 
@@ -190,6 +191,7 @@ const requestLogSampleRate = Number(
 const maxJsonBodyBytes = Number(process.env.MAX_JSON_BODY_BYTES ?? 8_192);
 const publicCategory: CategoryKey = "all";
 const defaultLanguage: LanguageKey = DEFAULT_LANGUAGE;
+const playableCategories = new Set(CATEGORY_ORDER.filter((category) => category !== "all"));
 const roundLengthMs = 60 * 60 * 1000;
 const lockOffsetMs = 50 * 60 * 1000;
 const revealOffsetMs = 55 * 60 * 1000;
@@ -415,6 +417,7 @@ function roundLanguage(round: RoundRow): LanguageKey {
 
 function getGeneratedPostsForCategory(category: CategoryKey): PlayablePost[] {
   return (statements.getGeneratedPosts.all() as GeneratedPostRow[])
+    .filter((post) => playableCategories.has(post.category))
     .filter((post) => category === "all" || post.category === category)
     .map(generatedRowToPost);
 }
@@ -515,7 +518,12 @@ function ensureCurrentRoundForLanguage(
   if (existingRound) {
     const existingPost = getPlayablePost(existingRound.post_id);
 
-    if (existingPost && postLanguage(existingPost) === language && postAuthorMatchesLanguage(existingPost, language)) {
+    if (
+      existingPost &&
+      playableCategories.has(existingPost.category) &&
+      postLanguage(existingPost) === language &&
+      postAuthorMatchesLanguage(existingPost, language)
+    ) {
       return existingRound;
     }
 

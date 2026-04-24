@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   AUTHORS,
+  CATEGORY_ORDER,
   CATEGORY_META,
   LANGUAGE_ORDER,
   LANGUAGES_BY_ID,
@@ -32,6 +33,7 @@ if (requestedLanguage !== "all" && !LANGUAGES_BY_ID.has(requestedLanguage)) {
 }
 
 const archiveLanguages = requestedLanguage === "all" ? LANGUAGE_ORDER : [requestedLanguage];
+const playableCategories = new Set(CATEGORY_ORDER.filter((category) => category !== "all"));
 
 fs.mkdirSync(dataDir, { recursive: true });
 
@@ -95,11 +97,6 @@ const laneParts = {
     pivots: ["is not random", "is not healing", "is not a soft launch", "is not accountability", "is not a coincidence", "is not merely styling"],
     endings: ["it is a publicist sweating through linen", "it is brand architecture with cheekbones", "it is chart warfare in cursive", "it is a notes app hostage situation", "it is a feud wearing jewelry"],
   },
-  random: {
-    subjects: ["the van", "the recipe", "the boarding group", "the mulch", "the group text", "the doorbell footage", "the coffee order", "the parking spot"],
-    pivots: ["is not normal", "is not neighborly", "is not a substitution", "is not a system", "is not etiquette", "is not a misunderstanding"],
-    endings: ["it is civilization fraying at the cul-de-sac", "it is one star with a backstory", "it is a small claims court prequel", "it is airport sociology with luggage", "it is a community alert written by adrenaline"],
-  },
 };
 
 const intensifiers = [
@@ -160,7 +157,6 @@ const localizedParts = {
     politics: ["la encuesta", "la agenda", "el mapa"],
     sports: ["la jugada", "el contrato", "la repetición"],
     celebrities: ["el comunicado", "el look", "la foto"],
-    random: ["el grupo vecinal", "la receta", "el embarque"],
     endings: ["y todos fingen que no era obvio", "porque la señal estaba delante de todos", "y el chat lo vio primero"],
   },
   fr: {
@@ -168,7 +164,6 @@ const localizedParts = {
     politics: ["le sondage", "l'ordre du jour", "la carte"],
     sports: ["l'action", "le contrat", "le ralenti"],
     celebrities: ["le communiqué", "la tenue", "la photo"],
-    random: ["le groupe de quartier", "la recette", "l'embarquement"],
     endings: ["et tout le monde prétend que ce n'était pas évident", "parce que le signal était déjà là", "et le chat l'avait vu avant"],
   },
   pt: {
@@ -176,7 +171,6 @@ const localizedParts = {
     politics: ["a pesquisa", "a pauta", "o mapa"],
     sports: ["a jogada", "o contrato", "o replay"],
     celebrities: ["o comunicado", "o look", "a foto"],
-    random: ["o grupo do bairro", "a receita", "o embarque"],
     endings: ["e todo mundo finge que não era óbvio", "porque o sinal estava na frente de todos", "e o chat percebeu primeiro"],
   },
   de: {
@@ -184,7 +178,6 @@ const localizedParts = {
     politics: ["die Umfrage", "die Tagesordnung", "die Karte"],
     sports: ["der Spielzug", "der Vertrag", "die Wiederholung"],
     celebrities: ["die Erklärung", "der Look", "das Foto"],
-    random: ["die Nachbarschaftsgruppe", "das Rezept", "das Boarding"],
     endings: ["und alle tun so, als wäre es nicht offensichtlich gewesen", "weil das Signal längst da war", "und der Gruppenchat es zuerst gesehen hat"],
   },
 };
@@ -228,7 +221,9 @@ const batch = [];
 
 for (let index = 0; index < count; index += 1) {
   const language = archiveLanguages[index % archiveLanguages.length];
-  const languageAuthors = AUTHORS.filter((author) => getAuthorLanguages(author).includes(language));
+  const languageAuthors = AUTHORS.filter(
+    (author) => playableCategories.has(author.category) && getAuthorLanguages(author).includes(language),
+  );
   const authorPool = languageAuthors.length ? languageAuthors : AUTHORS;
   const author = authorPool[index % authorPool.length];
   const model = MODELS[index % MODELS.length];

@@ -75,6 +75,7 @@ if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 50) {
 
 const eligibleAuthors = AUTHORS.filter(
   (author) =>
+    CATEGORY_ORDER.includes(author.category) &&
     (requestedCategory === "all" || author.category === requestedCategory) &&
     (requestedLanguage === "all" || getAuthorLanguages(author).includes(requestedLanguage)),
 );
@@ -135,16 +136,6 @@ const categoryAngles = {
     "award show body language",
     "caption punctuation analysis",
   ],
-  random: [
-    "HOA rule enforcement",
-    "airport boarding etiquette",
-    "recipe substitution complaint",
-    "doorbell camera suspicion",
-    "neighborhood group panic",
-    "parking spot territoriality",
-    "coffee order moral collapse",
-    "group text escalation",
-  ],
 };
 
 const dryRunLines = {
@@ -163,10 +154,6 @@ const dryRunLines = {
   celebrities: [
     "The necklace, the caption spacing, and the sudden fondness for beige are not separate events.",
     "That apology was not written to explain anything; it was written to survive screenshots from four fandoms.",
-  ],
-  random: [
-    "If the casserole failed after seven substitutions, perhaps the recipe was not the weak institution here.",
-    "Boarding early is not a personality, but standing sideways in the aisle is definitely a confession.",
   ],
 };
 
@@ -289,7 +276,7 @@ for (let offset = startIndex; offset < endIndex; offset += batchSize) {
     ];
   });
 
-  const insertedForBatch = insertMany(rows);
+  const insertedForBatch = dryRun ? 0 : insertMany(rows);
   inserted += insertedForBatch;
   attempted += rows.length;
   stats.attempted += rows.length;

@@ -408,6 +408,27 @@ a {
   font-size: clamp(1.28rem, 6.2vw, 1.48rem);
 }
 
+.fiction-notice {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(200, 51, 28, 0.42);
+  background: rgba(200, 51, 28, 0.07);
+  color: var(--red-ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.fiction-notice--archive {
+  margin: -2px 0 12px;
+  color: var(--muted);
+  border-color: var(--rule);
+  background: transparent;
+}
+
 .post-card__foot {
   display: flex;
   justify-content: space-between;

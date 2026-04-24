@@ -198,20 +198,22 @@ for (let index = 0; index < count; index += 1) {
   const now = Date.now();
   const id = `gen:${hashText(`${model}:${author.id}:${text}`)}`;
 
-  insertPost.run(
-    id,
-    author.category,
-    author.id,
-    modelId,
-    text,
-    language.id,
-    model,
-    promptVersion,
-    "approved",
-    JSON.stringify(raw),
-    now,
-    now,
-  );
+  if (!dryRun) {
+    insertPost.run(
+      id,
+      author.category,
+      author.id,
+      modelId,
+      text,
+      language.id,
+      model,
+      promptVersion,
+      "approved",
+      JSON.stringify(raw),
+      now,
+      now,
+    );
+  }
 
   console.log(`${id} ${author.category}/${author.id}: ${text}`);
 }

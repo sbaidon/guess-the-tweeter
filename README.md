@@ -8,8 +8,8 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 - TSRX wired into the Vite build for incremental adoption
 - Home page plus `/play/:language` for the current live round
 - `/archive/:language` for revealed past rounds
-- Hidden prompt genres for mixed feed, tech, politics, sports, celebrities, and random people
-- Multilingual post metadata and generation support
+- Hidden prompt genres for mixed feed, tech, politics, sports, and celebrities
+- Native-language post metadata and generation support
 - Shared hourly rounds backed by SQLite
 - WebSocket updates for live pick counts and reveals
 - Author guesses using real public handles for shared hourly parody rounds
@@ -66,6 +66,15 @@ Generate approved posts:
 DEEPSEEK_API_KEY=sk-... bun run generate:posts -- --count=12
 ```
 
+Review approved generated posts:
+
+```bash
+bun run content:review -- --language=all --category=all --limit=50
+DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite bun run content:review -- --language=es --limit=25
+```
+
+By default this review command only shows generated rows that are still playable: supported genre, approved status, and an author native to the row language. Add `--include-inactive` when auditing stale experiments.
+
 Estimate and generate a larger AI archive through OpenRouter:
 
 ```bash
@@ -88,7 +97,7 @@ Useful one-off generation environment variables:
 - `AI_BASE_URL` defaults to `https://api.deepseek.com`
 - `AI_MODEL` defaults to `deepseek-chat`
 - `AI_MODEL_ID` defaults to `deepseek-v3-2`
-- `GENERATE_CATEGORY` can be `all`, `tech`, `politics`, `sports`, `celebrities`, or `random`
+- `GENERATE_CATEGORY` can be `all`, `tech`, `politics`, `sports`, or `celebrities`
 - `GENERATE_LANGUAGE` can be `en`, `es`, `fr`, `pt`, or `de`
 
 Useful archive generation environment variables:
@@ -97,7 +106,7 @@ Useful archive generation environment variables:
 - `AI_MODEL_POOL` defaults to a balanced OpenRouter pool across OpenAI, Anthropic, Google, DeepSeek, xAI, Qwen, Mistral, and Meta
 - `AI_MODEL` or `--model` can force a single model for a run
 - `AI_MODEL_ID` can override the stored model id, but by default each row stores the actual response model
-- `AI_ARCHIVE_CATEGORY` can be `all`, `tech`, `politics`, `sports`, `celebrities`, or `random`
+- `AI_ARCHIVE_CATEGORY` can be `all`, `tech`, `politics`, `sports`, or `celebrities`
 - `AI_ARCHIVE_LANGUAGE` can be `all`, `en`, `es`, `fr`, `pt`, or `de`; `all` rotates languages
 - `AI_BATCH_SIZE` defaults to `25`
 

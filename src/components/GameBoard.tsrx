@@ -334,6 +334,9 @@ export component GameBoard({ category, language = "en" }) {
           </div>
         </div>
         <p>{round.post.text}</p>
+        <div class="fiction-notice">
+          {copy.game.fictionNotice}
+        </div>
         <div class="post-card__foot">
           <span>{copy.game.fakePost}</span>
           <span>{copy.game.picks(round.totals.submissions)}</span>
