@@ -13,6 +13,7 @@ import {
   LANGUAGE_ORDER,
   LANGUAGES_BY_ID,
   POSTS_BY_ID,
+  getAuthorLanguages,
   getAuthorsForMode,
   getPostsForCategory,
 } from "../src/gameData.js";
@@ -24,6 +25,7 @@ type RoundStatus = "open" | "locked" | "revealed";
 type Author = {
   id: string;
   category: CategoryKey;
+  languages?: LanguageKey[];
   name: string;
   handle: string;
   bio: string;
@@ -401,6 +403,11 @@ function postLanguage(post: PlayablePost): LanguageKey {
   return post.language ?? defaultLanguage;
 }
 
+function postAuthorMatchesLanguage(post: PlayablePost, language: LanguageKey): boolean {
+  const author = AUTHORS_BY_ID.get(post.authorId) as Author | undefined;
+  return Boolean(author && getAuthorLanguages(author).includes(language));
+}
+
 function roundLanguage(round: RoundRow): LanguageKey {
   const [language] = String(round.id).split(":");
   return LANGUAGES_BY_ID.has(language) ? language : defaultLanguage;
@@ -417,7 +424,9 @@ function getPlayablePostsForCategory(category: CategoryKey): PlayablePost[] {
 }
 
 function getPlayablePostsForLanguage(category: CategoryKey, language: LanguageKey): PlayablePost[] {
-  return getPlayablePostsForCategory(category).filter((post) => postLanguage(post) === language);
+  return getPlayablePostsForCategory(category).filter(
+    (post) => postLanguage(post) === language && postAuthorMatchesLanguage(post, language),
+  );
 }
 
 function getPlayablePost(postId: string): PlayablePost | null {
@@ -445,10 +454,10 @@ function createRoundRecord(
   const languagePosts = getPlayablePostsForLanguage(category, language);
   const playablePosts = languagePosts.length ? languagePosts : getPlayablePostsForCategory(category);
   const post = seededPick(playablePosts, `${category}:${language}:${startsAt}:post`);
-  const authorPool = (getAuthorsForMode(category, post.category) as Author[]).filter(
+  const authorPool = (getAuthorsForMode(category, post.category, language) as Author[]).filter(
     (author) => author.id !== post.authorId,
   );
-  const authorChoiceIds = seededShuffle(authorPool, `${category}:${startsAt}:authors`)
+  const authorChoiceIds = seededShuffle(authorPool, `${category}:${language}:${startsAt}:authors`)
     .slice(0, 3)
     .map((author) => author.id);
 
@@ -457,7 +466,7 @@ function createRoundRecord(
     category,
     postId: post.id,
     authorChoiceIds: JSON.stringify(
-      seededShuffle([post.authorId, ...authorChoiceIds], `${category}:${startsAt}:author-order`),
+      seededShuffle([post.authorId, ...authorChoiceIds], `${category}:${language}:${startsAt}:author-order`),
     ),
     modelChoiceIds: JSON.stringify([]),
     startsAt,
@@ -506,7 +515,7 @@ function ensureCurrentRoundForLanguage(
   if (existingRound) {
     const existingPost = getPlayablePost(existingRound.post_id);
 
-    if (existingPost && postLanguage(existingPost) === language) {
+    if (existingPost && postLanguage(existingPost) === language && postAuthorMatchesLanguage(existingPost, language)) {
       return existingRound;
     }
 

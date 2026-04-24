@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AUTHORS, CATEGORY_ORDER, LANGUAGES_BY_ID } from "../src/gameData.js";
+import { CATEGORY_ORDER, LANGUAGES_BY_ID, getAuthorsForMode } from "../src/gameData.js";
 
 const rootDir = path.resolve(import.meta.dir, "..");
 const dataDir = path.join(rootDir, "data");
@@ -94,10 +94,11 @@ function ensureGeneratedPostsLanguageColumn() {
 }
 
 function pickAuthor(index) {
-  const eligibleAuthors =
-    requestedCategory === "all"
-      ? AUTHORS
-      : AUTHORS.filter((author) => author.category === requestedCategory);
+  const eligibleAuthors = getAuthorsForMode(requestedCategory, requestedCategory, language.id);
+
+  if (!eligibleAuthors.length) {
+    throw new Error(`No authors found for ${requestedCategory}/${language.id}.`);
+  }
 
   return eligibleAuthors[index % eligibleAuthors.length];
 }
@@ -115,6 +116,7 @@ function buildPrompt(author) {
         task: "Write one fake tweet-like post.",
         constraints: [
           `Write in ${language.name} (${language.nativeName}). ${language.instruction}`,
+          "The persona should be a native/public voice in that language, not a translated English-language persona.",
           "18 to 34 words.",
           "No hashtags.",
           "No emojis.",

@@ -301,6 +301,186 @@ export const AUTHORS = [
     bio: "Security-focused internet account mixing enterprise caution with deadpan absurdity.",
     signature: "Doorbell-camera noir, enterprise paranoia, and very high confidence. Parody, not a real post.",
   },
+  {
+    id: "es-stack-profesor",
+    category: "tech",
+    languages: ["es"],
+    name: "Miguel Ángel Durán",
+    handle: "@midudev",
+    bio: "Spanish software educator and streamer whose feed turns web tooling into direct, practical takes.",
+    signature: "Frontend pragmatism, live-coding confidence, and a very Spanish allergy to overcomplicated stacks. Parody, not a real post.",
+  },
+  {
+    id: "es-congreso-ironista",
+    category: "politics",
+    languages: ["es"],
+    name: "Gabriel Rufián",
+    handle: "@gabrielrufian",
+    bio: "Spanish politician known for short, sharp political framing and extremely online parliamentary combat.",
+    signature: "One-line institutional knives, congressional sarcasm, and no patience for polite euphemism. Parody, not a real post.",
+  },
+  {
+    id: "es-kings-league-ringmaster",
+    category: "sports",
+    languages: ["es"],
+    name: "Gerard Piqué",
+    handle: "@3gerardpique",
+    bio: "Spanish footballer and founder whose posts blend football, spectacle, and business provocation.",
+    signature: "Football legacy, streamer-era showmanship, and boardroom confidence wearing a tracksuit. Parody, not a real post.",
+  },
+  {
+    id: "es-pop-codex",
+    category: "celebrities",
+    languages: ["es"],
+    name: "Rosalía",
+    handle: "@rosalia",
+    bio: "Spanish artist whose sparse posts can make fans inspect every accent mark, image crop, and silence.",
+    signature: "High-art pop mystery, Catalan-Spanish internet texture, and release-cycle divination. Parody, not a real post.",
+  },
+  {
+    id: "es-satire-desk",
+    category: "random",
+    languages: ["es"],
+    name: "El Mundo Today",
+    handle: "@elmundotoday",
+    bio: "Spanish satirical outlet that makes fake civic absurdity sound like a breaking-news alert.",
+    signature: "Deadpan headlines, bureaucratic nonsense, and Spain behaving exactly one notch too literally. Parody, not a real post.",
+  },
+  {
+    id: "fr-freebox-magnate",
+    category: "tech",
+    languages: ["fr"],
+    name: "Xavier Niel",
+    handle: "@Xavier75",
+    bio: "French telecom entrepreneur and startup backer with a blunt operator's view of markets and builders.",
+    signature: "French founder energy, telecom provocation, and impatience with permission-seeking. Parody, not a real post.",
+  },
+  {
+    id: "fr-elysee-threader",
+    category: "politics",
+    languages: ["fr"],
+    name: "Emmanuel Macron",
+    handle: "@EmmanuelMacron",
+    bio: "French president whose posts favor grand civic language, European stakes, and polished urgency.",
+    signature: "Republican gravity, European destiny, and sentences that arrive already podium-lit. Parody, not a real post.",
+  },
+  {
+    id: "fr-paris-nine",
+    category: "sports",
+    languages: ["fr"],
+    name: "Kylian Mbappé",
+    handle: "@KMbappe",
+    bio: "French football star whose posts carry elite calm, national expectation, and sponsor-era polish.",
+    signature: "Big-match composure, Parisian pressure, and the quiet certainty of someone everyone is watching. Parody, not a real post.",
+  },
+  {
+    id: "fr-pop-formula",
+    category: "celebrities",
+    languages: ["fr"],
+    name: "Aya Nakamura",
+    handle: "@AyaNakamuraa",
+    bio: "French-Malian pop star whose posts mix star power, slang, fashion, and chart confidence.",
+    signature: "French pop flex, clipped cool, and a refusal to over-explain the hook. Parody, not a real post.",
+  },
+  {
+    id: "fr-radio-gremlin",
+    category: "random",
+    languages: ["fr"],
+    name: "Guillaume Meurice",
+    handle: "@GMeurice",
+    bio: "French comedian and commentator with a taste for political absurdity and dry provocation.",
+    signature: "Public-radio mischief, French institutional side-eye, and punchlines that sound like civic paperwork. Parody, not a real post.",
+  },
+  {
+    id: "pt-rails-professor",
+    category: "tech",
+    languages: ["pt"],
+    name: "Fabio Akita",
+    handle: "@AkitaOnRails",
+    bio: "Brazilian software educator and entrepreneur known for long-form technical bluntness.",
+    signature: "Brazilian dev pragmatism, systems lectures, and zero patience for fashionable shortcuts. Parody, not a real post.",
+  },
+  {
+    id: "pt-planalto-veteran",
+    category: "politics",
+    languages: ["pt"],
+    name: "Lula",
+    handle: "@LulaOficial",
+    bio: "Brazilian president whose posts lean into labor politics, national development, and direct popular address.",
+    signature: "Union-hall cadence, Brasília stakes, and the moral rhythm of a campaign speech. Parody, not a real post.",
+  },
+  {
+    id: "pt-santos-dribbler",
+    category: "sports",
+    languages: ["pt"],
+    name: "Neymar Jr",
+    handle: "@neymarjr",
+    bio: "Brazilian footballer whose posts blend flair, faith, family, and constant scrutiny.",
+    signature: "Brazilian football theater, personal loyalty, and highlight-reel defiance under pressure. Parody, not a real post.",
+  },
+  {
+    id: "pt-pop-export",
+    category: "celebrities",
+    languages: ["pt"],
+    name: "Anitta",
+    handle: "@Anitta",
+    bio: "Brazilian pop star and entrepreneur whose feed moves between music, business, and global ambition.",
+    signature: "Pop strategy, Brazilian directness, and a launch plan already halfway to Miami. Parody, not a real post.",
+  },
+  {
+    id: "pt-timeline-megaphone",
+    category: "random",
+    languages: ["pt"],
+    name: "Choquei",
+    handle: "@choquei",
+    bio: "Brazilian internet news account built for viral timeline velocity and pop-culture whiplash.",
+    signature: "Caps-lock urgency, celebrity weather, and a timeline that treats every update like a siren. Parody, not a real post.",
+  },
+  {
+    id: "de-digital-feuilleton",
+    category: "tech",
+    languages: ["de"],
+    name: "Sascha Lobo",
+    handle: "@saschalobo",
+    bio: "German writer and digital-culture commentator with a taste for sharp internet diagnosis.",
+    signature: "German tech feuilleton, platform skepticism, and compound nouns carrying social dread. Parody, not a real post.",
+  },
+  {
+    id: "de-kanzler-format",
+    category: "politics",
+    languages: ["de"],
+    name: "Olaf Scholz",
+    handle: "@OlafScholz",
+    bio: "German chancellor whose posts favor measured institutional language and controlled seriousness.",
+    signature: "Calm statecraft, coalition arithmetic, and sentences wearing a navy suit. Parody, not a real post.",
+  },
+  {
+    id: "de-midfield-auditor",
+    category: "sports",
+    languages: ["de"],
+    name: "Toni Kroos",
+    handle: "@ToniKroos",
+    bio: "German footballer and commentator whose posts can make precision sound like a personality test.",
+    signature: "Midfield certainty, dry German correction, and contempt for sloppy first touches. Parody, not a real post.",
+  },
+  {
+    id: "de-zdf-chaos-agent",
+    category: "celebrities",
+    languages: ["de"],
+    name: "Jan Böhmermann",
+    handle: "@janboehm",
+    bio: "German satirist and TV host whose posts mix media critique, politics, and controlled chaos.",
+    signature: "German satire machinery, public-broadcast mischief, and a legal department sweating quietly. Parody, not a real post.",
+  },
+  {
+    id: "de-satire-wire",
+    category: "random",
+    languages: ["de"],
+    name: "Der Postillon",
+    handle: "@Der_Postillon",
+    bio: "German satirical outlet that frames absurd civic life as perfectly normal news.",
+    signature: "Straight-faced German headlines, bureaucratic surrealism, and official-sounding nonsense. Parody, not a real post.",
+  },
 ];
 
 export const POSTS = [
@@ -644,161 +824,161 @@ export const POSTS = [
     id: "es-tech-1",
     category: "tech",
     language: "es",
-    authorId: "vim-arsonist",
+    authorId: "es-stack-profesor",
     modelId: "gpt-4o-mini",
-    text: "Borré la abstracción y la app quedó más rápida, más fea y espiritualmente honesta. Eso es ingeniería senior.",
+    text: "Si para renderizar un botón necesitas tres providers y una ceremonia de tipos, igual el problema no es React sino el ritual.",
   },
   {
     id: "es-politics-1",
     category: "politics",
     language: "es",
-    authorId: "poll-whisperer",
+    authorId: "es-congreso-ironista",
     modelId: "deepseek-v3-2",
-    text: "La elección no la decide la gente más ruidosa en línea. La decide un condado escondido en las tablas cruzadas.",
+    text: "Hay gente que llama consenso a lo que siempre fue obediencia con pinganillo y rueda de prensa.",
   },
   {
     id: "es-sports-1",
     category: "sports",
     language: "es",
-    authorId: "cap-space-shaman",
+    authorId: "es-kings-league-ringmaster",
     modelId: "claude-3-5-haiku",
-    text: "El traspaso es falso hasta que vea salarios compatibles, protecciones de picks y una afición fingiendo que la robaron.",
+    text: "El fútbol se queja de los formatos nuevos como si llevara cien años sin cambiar las reglas para vender otra final.",
   },
   {
     id: "es-celebrities-1",
     category: "celebrities",
     language: "es",
-    authorId: "pop-pr-crisis-manager",
+    authorId: "es-pop-codex",
     modelId: "gemini-2-0-flash",
-    text: "La disculpa necesitaba menos adjetivos, mejor espaciado y ninguna frase que pudiera terminar en una bolsa mañana.",
+    text: "A veces el silencio también tiene compás. Si lo escuchas muy fuerte, quizá ya empezó la canción.",
   },
   {
     id: "es-random-1",
     category: "random",
     language: "es",
-    authorId: "hoa-nightmare",
+    authorId: "es-satire-desk",
     modelId: "llama-3-3-70b",
-    text: "No soy anti diversión. Soy pro estándares comunitarios, lo cual a veces exige fotografiar un flamenco a las seis.",
+    text: "Un ayuntamiento confirma que el banco incómodo de la plaza es patrimonio emocional de la gente que nunca se sienta.",
   },
   {
     id: "fr-tech-1",
     category: "tech",
     language: "fr",
-    authorId: "txdr-terminal",
+    authorId: "fr-freebox-magnate",
     modelId: "claude-3-5-haiku",
-    text: "Le terminal n'est pas rétro. C'est la dernière pièce honnête de l'informatique, et les menus déroulants peuvent attendre.",
+    text: "On ne construit pas une boîte en demandant la permission à ceux qui vendent déjà l'attente comme une stratégie.",
   },
   {
     id: "fr-politics-1",
     category: "politics",
     language: "fr",
-    authorId: "committee-hawk",
+    authorId: "fr-elysee-threader",
     modelId: "gpt-4o-mini",
-    text: "Si vous suivez le titre plutôt que l'amendement, vous ratez l'endroit où les couteaux sont vraiment rangés.",
+    text: "Dans les moments décisifs, notre responsabilité est simple: tenir, expliquer, agir, et ne jamais confondre le bruit avec le cap.",
   },
   {
     id: "fr-sports-1",
     category: "sports",
     language: "fr",
-    authorId: "ring-counter",
+    authorId: "fr-paris-nine",
     modelId: "deepseek-v3-2",
-    text: "Je ne veux pas entendre le dossier d'efficacité. Montrez-moi qui conclut quand les bannières cessent d'être théoriques.",
+    text: "Le talent ouvre la porte, mais le travail décide si tu as le droit de rester dans la pièce.",
   },
   {
     id: "fr-celebrities-1",
     category: "celebrities",
     language: "fr",
-    authorId: "red-carpet-forensicist",
+    authorId: "fr-pop-formula",
     modelId: "gemini-2-0-flash",
-    text: "Ce col n'était pas un accident. C'était un lancement discret, un démenti de feud et un contrat de streaming.",
+    text: "Quand le refrain rentre dans ta tête sans demander, c'est pas de ma faute si la journée change de tempo.",
   },
   {
     id: "fr-random-1",
     category: "random",
     language: "fr",
-    authorId: "airport-gate-prophet",
+    authorId: "fr-radio-gremlin",
     modelId: "llama-3-3-70b",
-    text: "Le groupe d'embarquement cinq n'est pas un groupe. C'est une expérience sociale avec des sacs et aucune géométrie.",
+    text: "La République survivra probablement, mais pas forcément à cette réunion où chacun découvre le mot procédure avec émotion.",
   },
   {
     id: "pt-tech-1",
     category: "tech",
     language: "pt",
-    authorId: "theo-coded-sermon",
+    authorId: "pt-rails-professor",
     modelId: "gpt-4o-mini",
-    text: "O debate de stack é simples: se o deploy exige fogueira, padre e doze variáveis, escolha outra coisa.",
+    text: "Antes de discutir framework, aprende a medir. Opinião sem benchmark é só horóscopo com camiseta de conferência.",
   },
   {
     id: "pt-politics-1",
     category: "politics",
     language: "pt",
-    authorId: "city-hall-goblin",
+    authorId: "pt-planalto-veteran",
     modelId: "claude-3-5-haiku",
-    text: "A pauta do conselho tem centenas de páginas, então em algum item uma briga de bairro vira política habitacional.",
+    text: "O povo sabe muito bem quem aparece na eleição e quem aparece quando tem que botar comida no prato.",
   },
   {
     id: "pt-sports-1",
     category: "sports",
     language: "pt",
-    authorId: "instant-replay-dad",
+    authorId: "pt-santos-dribbler",
     modelId: "deepseek-v3-2",
-    text: "Congela aí. O pé ainda raspa a linha, o apito atrasa, e a transmissão mente em tempo real.",
+    text: "Quando a alegria vira cobrança, eu continuo escolhendo jogar bonito. O resto faz barulho, a bola responde.",
   },
   {
     id: "pt-celebrities-1",
     category: "celebrities",
     language: "pt",
-    authorId: "stan-account-general",
+    authorId: "pt-pop-export",
     modelId: "gemini-2-0-flash",
-    text: "Se você ouviu uma vez e depois criticou, parabéns por participar de sabotagem cultural com recibo público.",
+    text: "O plano era só lançar uma música, mas vocês sabem que eu gosto quando o lançamento vira logística internacional.",
   },
   {
     id: "pt-random-1",
     category: "random",
     language: "pt",
-    authorId: "recipe-commenter",
+    authorId: "pt-timeline-megaphone",
     modelId: "llama-3-3-70b",
-    text: "Troquei a manteiga por água com gás e a farinha por vibração. A família odiou. Uma estrela, muito denso.",
+    text: "URGENTE: famoso posta foto sem legenda e internautas já trabalham com três teorias, duas indiretas e um término espiritual.",
   },
   {
     id: "de-tech-1",
     category: "tech",
     language: "de",
-    authorId: "cloud-gremlin",
+    authorId: "de-digital-feuilleton",
     modelId: "claude-3-5-haiku",
-    text: "Die Datenbank fiel nicht zufällig aus. Jemand behandelte Beobachtbarkeit wie Persönlichkeit statt wie ein Budget.",
+    text: "Die eigentliche Plattformkrise beginnt dort, wo Bequemlichkeit als Innovation verkleidet und Abhängigkeit als Nutzererlebnis verkauft wird.",
   },
   {
     id: "de-politics-1",
     category: "politics",
     language: "de",
-    authorId: "debate-clip-cartographer",
+    authorId: "de-kanzler-format",
     modelId: "gpt-4o-mini",
-    text: "Diese sieben Sekunden waren entweder fatal oder bedeutungslos, je nachdem welches Wahlmodell gerade meine Persönlichkeit bestätigt.",
+    text: "In schwierigen Zeiten braucht es Klarheit, Respekt und die Bereitschaft, Entscheidungen nicht nur anzukündigen, sondern umzusetzen.",
   },
   {
     id: "de-sports-1",
     category: "sports",
     language: "de",
-    authorId: "locker-room-poet",
+    authorId: "de-midfield-auditor",
     modelId: "deepseek-v3-2",
-    text: "Manche Spieler punkten. Andere verändern das emotionale Wetter der Halle. Der Boxscore gibt diesen Unterschied nie zu.",
+    text: "Ein guter Pass ist keine Kunst, wenn vorher niemand den Raum gesehen hat. Genau da beginnt der Unterschied.",
   },
   {
     id: "de-celebrities-1",
     category: "celebrities",
     language: "de",
-    authorId: "nepo-baby-apologist",
+    authorId: "de-zdf-chaos-agent",
     modelId: "gemini-2-0-flash",
-    text: "Manche erben Kontakte. Andere erben Wangenknochen, die Licht verstehen. Beides ist Arbeit in unterschiedlichen Ökonomien.",
+    text: "Manchmal ist Satire nur ein Spiegel, der vorher kurz bei der Rechtsabteilung war und danach trotzdem sehr gut sitzt.",
   },
   {
     id: "de-random-1",
     category: "random",
     language: "de",
-    authorId: "neighborhood-app-detective",
+    authorId: "de-satire-wire",
     modelId: "llama-3-3-70b",
-    text: "Weißer Lieferwagen fuhr zweimal vorbei. Vielleicht Paketdienst, vielleicht Aufklärung. Ich habe das Türklingelvideo emotional verbessert.",
+    text: "Deutsche Behörde führt digitales Formular ein, das nach dem Ausdrucken online bestätigt und anschließend per Fax entschuldigt werden muss.",
   },
 ];
 
@@ -813,6 +993,12 @@ export const AUTHORS_BY_CATEGORY = new Map(
   scopedCategories.map((category) => [
     category,
     AUTHORS.filter((author) => author.category === category),
+  ]),
+);
+export const AUTHORS_BY_LANGUAGE = new Map(
+  LANGUAGE_ORDER.map((language) => [
+    language,
+    AUTHORS.filter((author) => getAuthorLanguages(author).includes(language)),
   ]),
 );
 export const POSTS_BY_CATEGORY = new Map(
@@ -834,16 +1020,35 @@ export function getPostsForCategory(category) {
   return category === "all" ? POSTS : POSTS_BY_CATEGORY.get(category) ?? POSTS;
 }
 
-export function getAuthorsForMode(category, postCategory) {
-  return category === "all" ? AUTHORS : AUTHORS_BY_CATEGORY.get(postCategory) ?? AUTHORS;
+export function getAuthorLanguages(author) {
+  return author.languages ?? [DEFAULT_LANGUAGE];
 }
 
-export function getRosterGroups(category) {
+export function getAuthorsForLanguage(language = DEFAULT_LANGUAGE) {
+  return AUTHORS_BY_LANGUAGE.get(language) ?? AUTHORS_BY_LANGUAGE.get(DEFAULT_LANGUAGE) ?? AUTHORS;
+}
+
+export function getAuthorsForMode(category, postCategory, language = DEFAULT_LANGUAGE) {
+  const categoryAuthors = category === "all" ? AUTHORS : AUTHORS_BY_CATEGORY.get(postCategory) ?? AUTHORS;
+  const languageAuthors = categoryAuthors.filter((author) => getAuthorLanguages(author).includes(language));
+
+  if (languageAuthors.length >= 4) {
+    return languageAuthors;
+  }
+
+  const fallbackLanguageAuthors = getAuthorsForLanguage(language);
+  return fallbackLanguageAuthors.length >= 4 ? fallbackLanguageAuthors : categoryAuthors;
+}
+
+export function getRosterGroups(category, language = DEFAULT_LANGUAGE) {
+  const filterByLanguage = (authors) =>
+    authors.filter((author) => getAuthorLanguages(author).includes(language));
+
   if (category === "all") {
     return scopedCategories.map((groupKey) => ({
       key: groupKey,
       meta: CATEGORY_META[groupKey],
-      authors: AUTHORS_BY_CATEGORY.get(groupKey) ?? [],
+      authors: filterByLanguage(AUTHORS_BY_CATEGORY.get(groupKey) ?? []),
     }));
   }
 
@@ -851,7 +1056,7 @@ export function getRosterGroups(category) {
     {
       key: category,
       meta: CATEGORY_META[category],
-      authors: AUTHORS_BY_CATEGORY.get(category) ?? [],
+      authors: filterByLanguage(AUTHORS_BY_CATEGORY.get(category) ?? []),
     },
   ];
 }

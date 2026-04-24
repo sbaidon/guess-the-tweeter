@@ -2,7 +2,14 @@ import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AUTHORS, CATEGORY_ORDER, CATEGORY_META, LANGUAGES, LANGUAGES_BY_ID } from "../src/gameData.js";
+import {
+  AUTHORS,
+  CATEGORY_ORDER,
+  CATEGORY_META,
+  LANGUAGES,
+  LANGUAGES_BY_ID,
+  getAuthorLanguages,
+} from "../src/gameData.js";
 
 const rootDir = path.resolve(import.meta.dir, "..");
 const dataDir = path.join(rootDir, "data");
@@ -66,10 +73,11 @@ if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 50) {
   throw new Error("--batch-size must be an integer between 1 and 50.");
 }
 
-const eligibleAuthors =
-  requestedCategory === "all"
-    ? AUTHORS
-    : AUTHORS.filter((author) => author.category === requestedCategory);
+const eligibleAuthors = AUTHORS.filter(
+  (author) =>
+    (requestedCategory === "all" || author.category === requestedCategory) &&
+    (requestedLanguage === "all" || getAuthorLanguages(author).includes(requestedLanguage)),
+);
 
 if (!eligibleAuthors.length) {
   throw new Error(`No authors found for category: ${requestedCategory}`);
@@ -335,12 +343,15 @@ function pickModel(offset) {
 function buildBatch(offset, size) {
   return Array.from({ length: size }, (_, index) => {
     const globalIndex = offset + index;
-    const author = eligibleAuthors[globalIndex % eligibleAuthors.length];
+    const language = pickLanguage(globalIndex);
+    const languageAuthors = eligibleAuthors.filter((author) => getAuthorLanguages(author).includes(language.id));
+    const authorPool = languageAuthors.length ? languageAuthors : eligibleAuthors;
+    const author = authorPool[globalIndex % authorPool.length];
 
     return {
       slot: `post-${globalIndex}`,
       author,
-      language: pickLanguage(globalIndex),
+      language,
       angle: pick(categoryAngles[author.category], `${author.id}:${globalIndex}:angle`),
       cadence: pick(cadences, `${author.id}:${globalIndex}:cadence`),
     };
@@ -364,6 +375,7 @@ function buildMessages(batch) {
         constraints: [
           "18 to 36 words per post.",
           "Write in the target language. Do not add translation notes.",
+          "Use a persona that naturally belongs to the target language; do not write a translated version of an English-language poster.",
           "No hashtags.",
           "No emojis.",
           "No real person names, real handles, real company names, or breaking-news references.",

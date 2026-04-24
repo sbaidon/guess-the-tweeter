@@ -2,7 +2,14 @@ import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AUTHORS, CATEGORY_META, LANGUAGE_ORDER, LANGUAGES_BY_ID, MODELS } from "../src/gameData.js";
+import {
+  AUTHORS,
+  CATEGORY_META,
+  LANGUAGE_ORDER,
+  LANGUAGES_BY_ID,
+  MODELS,
+  getAuthorLanguages,
+} from "../src/gameData.js";
 
 const rootDir = path.resolve(import.meta.dir, "..");
 const dataDir = path.join(rootDir, "data");
@@ -220,9 +227,11 @@ const insertMany = db.transaction((rows) => {
 const batch = [];
 
 for (let index = 0; index < count; index += 1) {
-  const author = AUTHORS[index % AUTHORS.length];
-  const model = MODELS[index % MODELS.length];
   const language = archiveLanguages[index % archiveLanguages.length];
+  const languageAuthors = AUTHORS.filter((author) => getAuthorLanguages(author).includes(language));
+  const authorPool = languageAuthors.length ? languageAuthors : AUTHORS;
+  const author = authorPool[index % authorPool.length];
+  const model = MODELS[index % MODELS.length];
   const text = makePost(author, index);
   const id = `archive:${hashText(`${language}:${author.id}:${model.id}:${index}:${text}`)}`;
   batch.push([

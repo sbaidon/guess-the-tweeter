@@ -10,7 +10,7 @@ export const UI_COPY = {
       eyebrow: "Hourly parody game",
       title: "Guess who posted the fake tweet.",
       intro:
-        "A live round shows one fake multilingual post. Type the real handle, place your slip, and watch the crowd ledger after reveal.",
+        "A live round shows one native-language parody post. Type the real handle, place your slip, and watch the crowd ledger after reveal.",
       cta: "Play current round",
     },
     play: {
@@ -101,7 +101,7 @@ export const UI_COPY = {
       eyebrow: "Juego de parodia por hora",
       title: "Adivina quién publicó el tuit falso.",
       intro:
-        "Una ronda en vivo muestra una publicación falsa multilingüe. Escribe el handle real, registra tu jugada y mira el marcador colectivo al revelar.",
+        "Una ronda en vivo muestra una publicación de parodia nativa del idioma. Escribe el handle real, registra tu jugada y mira el marcador colectivo al revelar.",
       cta: "Jugar ronda actual",
     },
     play: {
@@ -192,7 +192,7 @@ export const UI_COPY = {
       eyebrow: "Jeu parodique horaire",
       title: "Devine qui a publié le faux tweet.",
       intro:
-        "Une manche en direct affiche un faux post multilingue. Tape le vrai handle, valide ton choix, puis regarde le registre collectif à la révélation.",
+        "Une manche en direct affiche un post parodique natif de la langue. Tape le vrai handle, valide ton choix, puis regarde le registre collectif à la révélation.",
       cta: "Jouer la manche actuelle",
     },
     play: {
@@ -283,7 +283,7 @@ export const UI_COPY = {
       eyebrow: "Jogo de paródia por hora",
       title: "Adivinhe quem publicou o tweet falso.",
       intro:
-        "Uma rodada ao vivo mostra uma publicação falsa multilíngue. Digite o handle real, registre seu palpite e veja o placar coletivo depois da revelação.",
+        "Uma rodada ao vivo mostra uma publicação de paródia nativa do idioma. Digite o handle real, registre seu palpite e veja o placar coletivo depois da revelação.",
       cta: "Jogar rodada atual",
     },
     play: {
@@ -374,7 +374,7 @@ export const UI_COPY = {
       eyebrow: "Stündliches Parodiespiel",
       title: "Rate, wer den Fake-Tweet gepostet hat.",
       intro:
-        "Eine Live-Runde zeigt einen gefälschten mehrsprachigen Post. Tippe den echten Handle ein, setze deinen Tipp und sieh nach der Auflösung das Crowd-Register.",
+        "Eine Live-Runde zeigt einen muttersprachlichen Parodie-Post. Tippe den echten Handle ein, setze deinen Tipp und sieh nach der Auflösung das Crowd-Register.",
       cta: "Aktuelle Runde spielen",
     },
     play: {

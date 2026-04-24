@@ -3,9 +3,11 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  AUTHORS_BY_ID,
   DEFAULT_LANGUAGE,
   LANGUAGE_ORDER,
   POSTS,
+  getAuthorLanguages,
   getAuthorsForMode,
 } from "../src/gameData.js";
 
@@ -149,17 +151,18 @@ function seededShuffle(items, seed) {
 }
 
 function createRound(post, startsAt, index) {
-  const authorPool = getAuthorsForMode(publicCategory, post.category).filter(
+  const language = post.language ?? DEFAULT_LANGUAGE;
+  const authorPool = getAuthorsForMode(publicCategory, post.category, language).filter(
     (author) => author.id !== post.authorId,
   );
-  const authorChoiceIds = seededShuffle(authorPool, `${startsAt}:authors`)
+  const authorChoiceIds = seededShuffle(authorPool, `${language}:${startsAt}:authors`)
     .slice(0, 3)
     .map((author) => author.id);
   return [
-    `${post.language ?? DEFAULT_LANGUAGE}:${publicCategory}:hourly:${startsAt}`,
+    `${language}:${publicCategory}:hourly:${startsAt}`,
     publicCategory,
     post.id,
-    JSON.stringify(seededShuffle([post.authorId, ...authorChoiceIds], `${startsAt}:author-order`)),
+    JSON.stringify(seededShuffle([post.authorId, ...authorChoiceIds], `${language}:${startsAt}:author-order`)),
     JSON.stringify([]),
     startsAt,
     startsAt + lockOffsetMs,
@@ -167,6 +170,11 @@ function createRound(post, startsAt, index) {
     null,
     Date.now() + index,
   ];
+}
+
+function postAuthorMatchesLanguage(post, language) {
+  const author = AUTHORS_BY_ID.get(post.authorId);
+  return Boolean(author && getAuthorLanguages(author).includes(language));
 }
 
 let inserted = 0;
@@ -182,7 +190,9 @@ const batch = [];
 for (let index = 0; index < roundCount; index += 1) {
   const startsAt = startAt + index * roundLengthMs;
   for (const language of scheduleLanguages) {
-    const languagePosts = playablePosts.filter((post) => (post.language ?? DEFAULT_LANGUAGE) === language);
+    const languagePosts = playablePosts.filter(
+      (post) => (post.language ?? DEFAULT_LANGUAGE) === language && postAuthorMatchesLanguage(post, language),
+    );
     const postPool = languagePosts.length ? languagePosts : playablePosts;
     const post = {
       ...postPool[index % postPool.length],
