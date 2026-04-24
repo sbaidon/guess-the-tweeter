@@ -12,6 +12,7 @@
     "dev:client": "bunx --bun vite",
     "server": "bun server/index.js",
     "start": "NODE_ENV=production bun server/index.js",
+    "generate:posts": "bun scripts/generate-posts.js",
     "build": "bunx --bun vite build",
     "preview": "bunx --bun vite preview"
   },

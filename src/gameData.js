@@ -52,6 +52,11 @@ export const MODELS = [
     name: "Llama 3.3 70B",
     blurb: "Open-weights swagger with longer phrasing and louder confidence.",
   },
+  {
+    id: "deepseek-v3-2",
+    name: "DeepSeek V3.2",
+    blurb: "Cheap, direct, and sharper than its token price should allow.",
+  },
 ];
 
 export const AUTHORS = [

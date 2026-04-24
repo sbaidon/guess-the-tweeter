@@ -5,11 +5,6 @@ const navigationItems = [
     label: "Play",
     to: "/play",
   },
-  {
-    label: "Host",
-    to: "/host/$category",
-    params: { category: "all" },
-  },
 ];
 
 export component AppLayout({ children }) {

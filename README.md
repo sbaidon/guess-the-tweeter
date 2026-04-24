@@ -11,7 +11,8 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 - Shared hourly rounds backed by SQLite
 - WebSocket updates for live pick counts and reveals
 - Author guesses plus a bonus round for guessing which model generated the parody
-- Host controls at `/host/:category` for reveal/reset/new round
+- One authoritative public contest per hour
+- DeepSeek-compatible offline generation worker
 - MIT-licensed open-source setup
 
 ## Run it
@@ -39,15 +40,27 @@ Production serves the built frontend and API from the same Bun process. SQLite d
 The cheapest scalable path is not to generate posts during gameplay.
 
 - Serve gameplay from stored prompts only
-- Use an AI gateway or any OpenAI-compatible proxy for offline batch generation
-- Generate candidate posts in the background, dedupe them, moderate them, and promote only approved prompts into the game dataset
+- Use DeepSeek's OpenAI-compatible API for offline generation by default
+- Generate candidate posts in the background and write approved prompts into SQLite
 - Keep the runtime app stateless and cheap; the expensive part happens asynchronously
+
+Generate approved posts:
+
+```bash
+DEEPSEEK_API_KEY=sk-... bun run generate:posts -- --count=12
+```
+
+Useful generation environment variables:
+
+- `AI_BASE_URL` defaults to `https://api.deepseek.com`
+- `AI_MODEL` defaults to `deepseek-chat`
+- `AI_MODEL_ID` defaults to the in-game label `deepseek-v3-2`
+- `GENERATE_CATEGORY` can be `all`, `tech`, `politics`, or `sports`
 
 There is a more detailed note in [docs/content-pipeline.md](./docs/content-pipeline.md).
 
 ## Easy next steps
 
-- Move the parody dataset into JSON or a CMS
-- Add timed modes, head-to-head play, or daily challenge routes
+- Add a lightweight review screen for generated candidates
 - Persist scores in local storage or a backend
-- Add a generation worker that writes approved prompts into a published content table
+- Add provider fallback for DeepSeek V4 when it is officially available

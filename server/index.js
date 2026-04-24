@@ -7,13 +7,11 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import {
   AUTHORS_BY_ID,
-  CATEGORY_ORDER,
   MODELS,
   MODELS_BY_ID,
   POSTS_BY_ID,
   getAuthorsForMode,
   getPostsForCategory,
-  isCategoryKey,
 } from "../src/gameData.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -23,6 +21,7 @@ const distDir = path.join(rootDir, "dist");
 const dbPath = process.env.DATABASE_PATH ?? path.join(dataDir, "guess-the-tweeter.sqlite");
 const port = Number(process.env.PORT ?? 8787);
 const adminToken = process.env.ADMIN_TOKEN ?? "";
+const publicCategory = "all";
 const roundLengthMs = 60 * 60 * 1000;
 const lockOffsetMs = 50 * 60 * 1000;
 const revealOffsetMs = 55 * 60 * 1000;
@@ -61,6 +60,20 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS generated_posts (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    author_id TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    source_model TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'approved',
+    raw_response TEXT,
+    created_at INTEGER NOT NULL,
+    approved_at INTEGER
   );
 `);
 
@@ -101,6 +114,8 @@ const statements = {
   countSubmissions: db.prepare("SELECT COUNT(*) AS count FROM submissions WHERE round_id = ?"),
   setRoundStatus: db.prepare("UPDATE rounds SET status_override = ? WHERE id = ?"),
   clearSubmissions: db.prepare("DELETE FROM submissions WHERE round_id = ?"),
+  getGeneratedPost: db.prepare("SELECT * FROM generated_posts WHERE id = ? AND status = 'approved'"),
+  getGeneratedPosts: db.prepare("SELECT * FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC"),
 };
 
 function hashToInt(value) {
@@ -120,8 +135,45 @@ function seededShuffle(items, seed) {
   });
 }
 
+function generatedRowToPost(row) {
+  return {
+    id: row.id,
+    category: row.category,
+    authorId: row.author_id,
+    modelId: row.model_id,
+    text: row.text,
+  };
+}
+
+function getGeneratedPostsForCategory(category) {
+  return statements.getGeneratedPosts
+    .all()
+    .filter((post) => category === "all" || post.category === category)
+    .map(generatedRowToPost);
+}
+
+function getPlayablePostsForCategory(category) {
+  return [...getPostsForCategory(category), ...getGeneratedPostsForCategory(category)];
+}
+
+function getPlayablePost(postId) {
+  const seededPost = POSTS_BY_ID.get(postId);
+
+  if (seededPost) {
+    return seededPost;
+  }
+
+  const generatedPost = statements.getGeneratedPost.get(postId);
+
+  if (!generatedPost) {
+    return null;
+  }
+
+  return generatedRowToPost(generatedPost);
+}
+
 function createRoundRecord(category, startsAt, idPrefix = "hourly") {
-  const post = seededPick(getPostsForCategory(category), `${category}:${startsAt}:post`);
+  const post = seededPick(getPlayablePostsForCategory(category), `${category}:${startsAt}:post`);
   const authorPool = getAuthorsForMode(category, post.category).filter(
     (author) => author.id !== post.authorId,
   );
@@ -175,30 +227,7 @@ function currentHourStart(now = Date.now()) {
   return date.getTime();
 }
 
-function getManualRound(category, now = Date.now()) {
-  const setting = statements.getSetting.get(`active_round:${category}`);
-
-  if (!setting) {
-    return null;
-  }
-
-  const round = statements.getRound.get(setting.value);
-
-  if (!round || now >= round.starts_at + roundLengthMs) {
-    statements.deleteSetting.run(`active_round:${category}`);
-    return null;
-  }
-
-  return round;
-}
-
 function ensureCurrentRound(category, now = Date.now()) {
-  const manualRound = getManualRound(category, now);
-
-  if (manualRound) {
-    return manualRound;
-  }
-
   const startsAt = currentHourStart(now);
   const roundId = `${category}:hourly:${startsAt}`;
   const existingRound = statements.getRound.get(roundId);
@@ -208,13 +237,6 @@ function ensureCurrentRound(category, now = Date.now()) {
   }
 
   return insertRound(createRoundRecord(category, startsAt));
-}
-
-function createManualRound(category) {
-  const startsAt = Date.now();
-  const round = insertRound(createRoundRecord(category, startsAt, "manual"));
-  statements.setSetting.run(`active_round:${category}`, round.id);
-  return round;
 }
 
 function computeStatus(round, now = Date.now()) {
@@ -253,7 +275,12 @@ function buildCounts(submissions, field, choiceIds) {
 
 function publicRound(round, clientId) {
   const status = computeStatus(round);
-  const post = POSTS_BY_ID.get(round.post_id);
+  const post = getPlayablePost(round.post_id);
+
+  if (!post) {
+    throw new Error(`Post not found for round ${round.id}: ${round.post_id}`);
+  }
+
   const authorChoiceIds = parseChoices(round.author_choice_ids);
   const modelChoiceIds = parseChoices(round.model_choice_ids);
   const submissions = statements.getSubmissions.all(round.id);
@@ -361,13 +388,7 @@ function requireAdmin(request, response) {
 
 async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/rounds/current") {
-    const category = url.searchParams.get("category") ?? "all";
-
-    if (!isCategoryKey(category)) {
-      return badRequest(response, "Unknown category.");
-    }
-
-    const round = ensureCurrentRound(category);
+    const round = ensureCurrentRound(publicCategory);
     return json(response, 200, publicRound(round, url.searchParams.get("clientId")));
   }
 
@@ -454,23 +475,6 @@ async function handleApi(request, response, url) {
     return json(response, 200, publicRound(statements.getRound.get(roundId)));
   }
 
-  if (request.method === "POST" && url.pathname === "/api/admin/rounds/next") {
-    if (!requireAdmin(request, response)) {
-      return;
-    }
-
-    const body = await readJson(request);
-    const category = body.category ?? "all";
-
-    if (!isCategoryKey(category)) {
-      return badRequest(response, "Unknown category.");
-    }
-
-    const round = createManualRound(category);
-    broadcastUpdate(category);
-    return json(response, 200, publicRound(round));
-  }
-
   return notFound(response);
 }
 
@@ -542,10 +546,7 @@ function broadcastUpdate(category) {
 }
 
 wss.on("connection", (socket, request) => {
-  const url = new URL(request.url, `http://${request.headers.host}`);
-  const category = url.searchParams.get("category") ?? "all";
-
-  socket.category = isCategoryKey(category) ? category : "all";
+  socket.category = publicCategory;
   sockets.add(socket);
   socket.send(JSON.stringify({ type: "round:update", category: socket.category }));
   broadcastUpdate(socket.category);
@@ -556,9 +557,7 @@ wss.on("connection", (socket, request) => {
   });
 });
 
-for (const category of CATEGORY_ORDER) {
-  ensureCurrentRound(category);
-}
+ensureCurrentRound(publicCategory);
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`Guess the Tweeter server listening on http://127.0.0.1:${port}`);
