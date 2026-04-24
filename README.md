@@ -4,10 +4,10 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 
 ## Current shape
 
-- TanStack Router navigation with route-based game modes
+- TanStack Router navigation with a single public play route
 - TSRX wired into the Vite build for incremental adoption
-- Home page plus `/play/:category` routes
-- Categories for mixed feed, tech, politics, and sports
+- Home page plus `/play` for the current live round
+- Hidden prompt genres for mixed feed, tech, politics, and sports
 - Shared hourly rounds backed by SQLite
 - WebSocket updates for live pick counts and reveals
 - Author guesses plus a bonus round for guessing which model generated the parody

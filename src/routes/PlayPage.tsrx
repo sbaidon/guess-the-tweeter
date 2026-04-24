@@ -1,10 +1,8 @@
-import { Link, useParams } from "@tanstack/react-router";
 import { GameBoard } from "../components/GameBoard.tsrx";
 import { CATEGORY_META } from "../gameData";
 
 export component PlayPage() {
-  const { category } = useParams({ from: "/play/$category" });
-  const meta = CATEGORY_META[category];
+  const meta = CATEGORY_META.all;
 
   <div
     class="play-shell"
@@ -13,39 +11,13 @@ export component PlayPage() {
       "--active-accent-soft": meta.soft,
     }}
   >
-    <section class="hero hero--play">
-      <div class="hero__eyebrow">{`HOURLY ROUND / ${meta.name.toUpperCase()} / LIVE PICKS`}</div>
-      <div class="hero__grid">
-        <div class="hero__copy">
-          <p class="hero__kicker">{meta.name}</p>
-          <h1>{meta.heroTitle}</h1>
-          <p class="hero__lede">{meta.blurb}</p>
-        </div>
-
-        <div class="hero__panel">
-          <p class="panel__label">{"Current route"}</p>
-          <p class="panel__text">{`/play/${category}`}</p>
-          <div class="panel__chips">
-            <span>{"4 choices"}</span>
-            <span>{"Shared round"}</span>
-            <span>{"Post-reveal picks"}</span>
-          </div>
-          <div class="hero__actions hero__actions--stacked">
-            <Link className="button button--ghost" to="/">
-              {"Back Home"}
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <GameBoard key={category} category={category} />
+    <GameBoard category="all" />
   </div>
 
   <style>
     .play-shell {
-      display: grid;
-      gap: 22px;
+      --active-accent: #111827;
+      --active-accent-soft: rgba(17, 24, 39, 0.08);
     }
   </style>
 }

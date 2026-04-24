@@ -2,29 +2,8 @@ import { Link } from "@tanstack/react-router";
 
 const navigationItems = [
   {
-    label: "Home",
-    to: "/",
-    activeOptions: { exact: true },
-  },
-  {
-    label: "Mixed Feed",
-    to: "/play/$category",
-    params: { category: "all" },
-  },
-  {
-    label: "Tech",
-    to: "/play/$category",
-    params: { category: "tech" },
-  },
-  {
-    label: "Politics",
-    to: "/play/$category",
-    params: { category: "politics" },
-  },
-  {
-    label: "Sports",
-    to: "/play/$category",
-    params: { category: "sports" },
+    label: "Play",
+    to: "/play",
   },
   {
     label: "Host",

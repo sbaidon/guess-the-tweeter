@@ -27,14 +27,23 @@ const homeRoute = createRoute({
 
 const playRoute = createRoute({
   getParentRoute: () => rootRoute,
+  path: "/play",
+  component: PlayPage,
+});
+
+const legacyPlayRoute = createRoute({
+  getParentRoute: () => rootRoute,
   path: "/play/$category",
   beforeLoad: ({ params }) => {
     if (!isCategoryKey(params.category)) {
       throw redirect({
-        to: "/play/$category",
-        params: { category: "all" },
+        to: "/play",
       });
     }
+
+    throw redirect({
+      to: "/play",
+    });
   },
   component: PlayPage,
 });
@@ -53,7 +62,7 @@ const hostRoute = createRoute({
   component: HostPage,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, playRoute, hostRoute]);
+const routeTree = rootRoute.addChildren([homeRoute, playRoute, legacyPlayRoute, hostRoute]);
 
 export const router = createRouter({
   routeTree,
