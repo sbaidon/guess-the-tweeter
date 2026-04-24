@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AUTHORS, CATEGORY_ORDER, CATEGORY_META } from "../src/gameData.js";
+import { AUTHORS, CATEGORY_ORDER, CATEGORY_META, LANGUAGES, LANGUAGES_BY_ID } from "../src/gameData.js";
 
 const rootDir = path.resolve(import.meta.dir, "..");
 const dataDir = path.join(rootDir, "data");
@@ -19,6 +19,7 @@ const count = numberArg("count", "AI_ARCHIVE_COUNT", 24 * 365 * years);
 const batchSize = numberArg("batch-size", "AI_BATCH_SIZE", 25);
 const retries = numberArg("retries", "AI_RETRIES", 3);
 const requestedCategory = stringArg("category", "AI_ARCHIVE_CATEGORY", "all");
+const requestedLanguage = stringArg("language", "AI_ARCHIVE_LANGUAGE", "all");
 const dbPath = process.env.DATABASE_PATH ?? path.join(dataDir, "guess-the-tweeter.sqlite");
 const apiKey = process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? "";
 const baseUrl = (process.env.AI_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
@@ -32,6 +33,10 @@ const outputPricePerMillion = numberArg("output-price", "AI_OUTPUT_PRICE_PER_1M"
 
 if (!CATEGORY_ORDER.includes(requestedCategory)) {
   throw new Error(`Unknown category: ${requestedCategory}`);
+}
+
+if (requestedLanguage !== "all" && !LANGUAGES_BY_ID.has(requestedLanguage)) {
+  throw new Error(`Unknown language: ${requestedLanguage}`);
 }
 
 if (!Number.isInteger(count) || count < 1) {
@@ -159,6 +164,7 @@ db.exec(`
     author_id TEXT NOT NULL,
     model_id TEXT NOT NULL,
     text TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
     source_model TEXT NOT NULL,
     prompt_version TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'approved',
@@ -168,6 +174,8 @@ db.exec(`
   );
 `);
 
+ensureGeneratedPostsLanguageColumn();
+
 const insertPost = db.prepare(`
   INSERT OR IGNORE INTO generated_posts (
     id,
@@ -175,6 +183,7 @@ const insertPost = db.prepare(`
     author_id,
     model_id,
     text,
+    language,
     source_model,
     prompt_version,
     status,
@@ -182,7 +191,7 @@ const insertPost = db.prepare(`
     created_at,
     approved_at
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertMany = db.transaction((rows) => {
@@ -213,6 +222,7 @@ for (let offset = 0; offset < count; offset += batchSize) {
       item.author.id,
       modelId,
       text,
+      item.language.id,
       sourceModel,
       promptVersion,
       "approved",
@@ -261,6 +271,7 @@ function buildBatch(offset, size) {
     return {
       slot: `post-${globalIndex}`,
       author,
+      language: pickLanguage(globalIndex),
       angle: pick(categoryAngles[author.category], `${author.id}:${globalIndex}:angle`),
       cadence: pick(cadences, `${author.id}:${globalIndex}:cadence`),
     };
@@ -283,6 +294,7 @@ function buildMessages(batch) {
         task: "Write one fake tweet-like post for each item.",
         constraints: [
           "18 to 36 words per post.",
+          "Write in the target language. Do not add translation notes.",
           "No hashtags.",
           "No emojis.",
           "No real person names, real handles, real company names, or breaking-news references.",
@@ -302,6 +314,12 @@ function buildMessages(batch) {
         },
         items: batch.map((item) => ({
           slot: item.slot,
+          targetLanguage: {
+            id: item.language.id,
+            name: item.language.name,
+            nativeName: item.language.nativeName,
+            instruction: item.language.instruction,
+          },
           category: CATEGORY_META[item.author.category].name,
           angle: item.angle,
           cadence: item.cadence,
@@ -487,7 +505,24 @@ function escapeRegExp(value) {
 
 function dryRunPost(item) {
   const line = pick(dryRunLines[item.author.category], `${item.slot}:line`);
-  return `${line} ${item.cadence}`;
+  return `[${item.language.name}] ${line} ${item.cadence}`;
+}
+
+function pickLanguage(index) {
+  if (requestedLanguage !== "all") {
+    return LANGUAGES_BY_ID.get(requestedLanguage);
+  }
+
+  return LANGUAGES[index % LANGUAGES.length];
+}
+
+function ensureGeneratedPostsLanguageColumn() {
+  const columns = db.prepare("PRAGMA table_info(generated_posts)").all();
+  const hasLanguage = columns.some((column) => column.name === "language");
+
+  if (!hasLanguage) {
+    db.exec("ALTER TABLE generated_posts ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
+  }
 }
 
 function hashText(value) {
@@ -528,6 +563,7 @@ function estimateRun() {
 function printEstimate(estimate) {
   console.log(`Posts: ${estimate.count}`);
   console.log(`Batch size: ${estimate.batchSize}`);
+  console.log(`Language: ${requestedLanguage}`);
   console.log(`API calls: ${estimate.batches}`);
   console.log(`Estimated input tokens: ${estimate.inputTokens.toLocaleString()}`);
   console.log(`Estimated output tokens: ${estimate.outputTokens.toLocaleString()}`);

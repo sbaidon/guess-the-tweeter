@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CATEGORY_META } from "../gameData";
+import { CATEGORY_META, DEFAULT_LANGUAGE, LANGUAGES_BY_ID } from "../gameData";
 import { fetchRoundHistory } from "../liveApi";
 
 function formatRoundTime(value) {
@@ -11,14 +11,15 @@ function formatRoundTime(value) {
   }).format(new Date(value));
 }
 
-export component ArchivePage() {
+export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
   const [rounds, setRounds] = useState([]);
   const [error, setError] = useState("");
+  const languageMeta = LANGUAGES_BY_ID.get(language);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchRoundHistory(18, controller.signal)
+    fetchRoundHistory(18, language, controller.signal)
       .then((payload) => {
         setRounds(payload.rounds ?? []);
         setError("");
@@ -30,13 +31,13 @@ export component ArchivePage() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [language]);
 
   <section class="archive-card">
     <p class="eyebrow">{"Past slips"}</p>
     <h1>{"The ledger."}</h1>
     <p class="archive-card__intro">
-      {"Revealed rounds stay visible here with the answer and how many players hit the handle."}
+      {`Revealed ${languageMeta?.nativeName ?? "English"} rounds stay visible here with the answer and how many players hit the handle.`}
     </p>
 
     if (error) {
@@ -58,7 +59,7 @@ export component ArchivePage() {
           <article key={round.id} class="archive-round">
             <div class="archive-round__meta">
               <span>{formatRoundTime(round.startsAt)}</span>
-              <span>{meta.name}</span>
+              <span>{`${meta.name} · ${round.post.languageNativeName}`}</span>
             </div>
             <p>{round.post.text}</p>
             <div class="archive-round__answer">

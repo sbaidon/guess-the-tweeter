@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AUTHORS, CATEGORY_META, MODELS } from "../src/gameData.js";
+import { AUTHORS, CATEGORY_META, LANGUAGE_ORDER, LANGUAGES_BY_ID, MODELS } from "../src/gameData.js";
 
 const rootDir = path.resolve(import.meta.dir, "..");
 const dataDir = path.join(rootDir, "data");
@@ -16,8 +16,15 @@ const args = new Map(
 
 const years = Number(args.get("years") ?? process.env.ARCHIVE_YEARS ?? 10);
 const count = Number(args.get("count") ?? process.env.ARCHIVE_COUNT ?? 24 * 365 * years);
+const requestedLanguage = args.get("language") ?? process.env.ARCHIVE_LANGUAGE ?? "en";
 const promptVersion = "procedural-archive-v1";
 const sourceModel = "codex-procedural";
+
+if (requestedLanguage !== "all" && !LANGUAGES_BY_ID.has(requestedLanguage)) {
+  throw new Error(`Unknown --language: ${requestedLanguage}`);
+}
+
+const archiveLanguages = requestedLanguage === "all" ? LANGUAGE_ORDER : [requestedLanguage];
 
 fs.mkdirSync(dataDir, { recursive: true });
 
@@ -30,6 +37,7 @@ db.exec(`
     author_id TEXT NOT NULL,
     model_id TEXT NOT NULL,
     text TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
     source_model TEXT NOT NULL,
     prompt_version TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'approved',
@@ -39,6 +47,8 @@ db.exec(`
   );
 `);
 
+ensureGeneratedPostsLanguageColumn();
+
 const insertPost = db.prepare(`
   INSERT OR IGNORE INTO generated_posts (
     id,
@@ -46,6 +56,7 @@ const insertPost = db.prepare(`
     author_id,
     model_id,
     text,
+    language,
     source_model,
     prompt_version,
     status,
@@ -53,7 +64,7 @@ const insertPost = db.prepare(`
     created_at,
     approved_at
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const laneParts = {
@@ -99,12 +110,27 @@ function hashText(value) {
   return crypto.createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
+function ensureGeneratedPostsLanguageColumn() {
+  const columns = db.prepare("PRAGMA table_info(generated_posts)").all();
+  const hasLanguage = columns.some((column) => column.name === "language");
+
+  if (!hasLanguage) {
+    db.exec("ALTER TABLE generated_posts ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
+  }
+}
+
 function pick(items, seed) {
   const hash = crypto.createHash("sha256").update(seed).digest("hex").slice(0, 12);
   return items[Number.parseInt(hash, 16) % items.length];
 }
 
 function makePost(author, index) {
+  const language = archiveLanguages[index % archiveLanguages.length];
+
+  if (language !== "en") {
+    return makeLocalizedPost(author, index, language);
+  }
+
   const parts = laneParts[author.category];
   const subject = pick(parts.subjects, `${author.id}:${index}:subject`);
   const pivot = pick(parts.pivots, `${author.id}:${index}:pivot`);
@@ -121,6 +147,67 @@ function makePost(author, index) {
   return pick(variants, `${author.id}:${index}:variant`);
 }
 
+const localizedParts = {
+  es: {
+    tech: ["el despliegue", "la abstracción", "el benchmark"],
+    politics: ["la encuesta", "la agenda", "el mapa"],
+    sports: ["la jugada", "el contrato", "la repetición"],
+    celebrities: ["el comunicado", "el look", "la foto"],
+    random: ["el grupo vecinal", "la receta", "el embarque"],
+    endings: ["y todos fingen que no era obvio", "porque la señal estaba delante de todos", "y el chat lo vio primero"],
+  },
+  fr: {
+    tech: ["le déploiement", "l'abstraction", "le benchmark"],
+    politics: ["le sondage", "l'ordre du jour", "la carte"],
+    sports: ["l'action", "le contrat", "le ralenti"],
+    celebrities: ["le communiqué", "la tenue", "la photo"],
+    random: ["le groupe de quartier", "la recette", "l'embarquement"],
+    endings: ["et tout le monde prétend que ce n'était pas évident", "parce que le signal était déjà là", "et le chat l'avait vu avant"],
+  },
+  pt: {
+    tech: ["o deploy", "a abstração", "o benchmark"],
+    politics: ["a pesquisa", "a pauta", "o mapa"],
+    sports: ["a jogada", "o contrato", "o replay"],
+    celebrities: ["o comunicado", "o look", "a foto"],
+    random: ["o grupo do bairro", "a receita", "o embarque"],
+    endings: ["e todo mundo finge que não era óbvio", "porque o sinal estava na frente de todos", "e o chat percebeu primeiro"],
+  },
+  de: {
+    tech: ["das Deployment", "die Abstraktion", "der Benchmark"],
+    politics: ["die Umfrage", "die Tagesordnung", "die Karte"],
+    sports: ["der Spielzug", "der Vertrag", "die Wiederholung"],
+    celebrities: ["die Erklärung", "der Look", "das Foto"],
+    random: ["die Nachbarschaftsgruppe", "das Rezept", "das Boarding"],
+    endings: ["und alle tun so, als wäre es nicht offensichtlich gewesen", "weil das Signal längst da war", "und der Gruppenchat es zuerst gesehen hat"],
+  },
+};
+
+function makeLocalizedPost(author, index, language) {
+  const parts = localizedParts[language];
+  const subject = pick(parts[author.category], `${language}:${author.id}:${index}:subject`);
+  const ending = pick(parts.endings, `${language}:${author.id}:${index}:ending`);
+  const variants = {
+    es: [
+      `La clave no es ${subject}; es quién necesita llamarlo normal, ${ending}.`,
+      `Cada persona de internet sabe que ${subject} no es el punto. Es el recibo, ${ending}.`,
+    ],
+    fr: [
+      `Le sujet n'est pas ${subject}; c'est qui doit absolument appeler ça normal, ${ending}.`,
+      `Tout le monde en ligne sait que ${subject} n'est pas le point. C'est le reçu, ${ending}.`,
+    ],
+    pt: [
+      `O ponto não é ${subject}; é quem precisa chamar isso de normal, ${ending}.`,
+      `Toda pessoa da internet sabe que ${subject} não é o assunto. É o recibo, ${ending}.`,
+    ],
+    de: [
+      `Nicht ${subject} ist der Punkt; der Punkt ist, wer es unbedingt normal nennen muss, ${ending}.`,
+      `Jeder im Internet weiß: ${subject} ist nicht der Punkt. Es ist der Beleg, ${ending}.`,
+    ],
+  };
+
+  return pick(variants[language], `${language}:${author.id}:${index}:variant`);
+}
+
 let inserted = 0;
 const now = Date.now();
 const insertMany = db.transaction((rows) => {
@@ -135,18 +222,20 @@ const batch = [];
 for (let index = 0; index < count; index += 1) {
   const author = AUTHORS[index % AUTHORS.length];
   const model = MODELS[index % MODELS.length];
+  const language = archiveLanguages[index % archiveLanguages.length];
   const text = makePost(author, index);
-  const id = `archive:${hashText(`${author.id}:${model.id}:${index}:${text}`)}`;
+  const id = `archive:${hashText(`${language}:${author.id}:${model.id}:${index}:${text}`)}`;
   batch.push([
     id,
     author.category,
     author.id,
     model.id,
     text,
+    language,
     sourceModel,
     promptVersion,
     "approved",
-    JSON.stringify({ index, procedural: true }),
+    JSON.stringify({ index, language, procedural: true }),
     now + index,
     now + index,
   ]);
@@ -162,4 +251,5 @@ if (batch.length) {
 
 console.log(`Generated archive candidates: ${count}`);
 console.log(`Inserted new rows: ${inserted}`);
+console.log(`Languages: ${archiveLanguages.join(", ")}`);
 console.log(`Database: ${dbPath}`);

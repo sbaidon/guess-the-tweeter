@@ -6,16 +6,17 @@ A React + Vite parody trivia game using TanStack Router, with selective TSRX com
 
 - TanStack Router navigation for live play and archives
 - TSRX wired into the Vite build for incremental adoption
-- Home page plus `/play` for the current live round
-- `/archive` for revealed past rounds
+- Home page plus `/play/:language` for the current live round
+- `/archive/:language` for revealed past rounds
 - Hidden prompt genres for mixed feed, tech, politics, sports, celebrities, and random people
+- Multilingual post metadata and generation support
 - Shared hourly rounds backed by SQLite
 - WebSocket updates for live pick counts and reveals
-- Author guesses using real public handles for one shared hourly parody round
+- Author guesses using real public handles for shared hourly parody rounds
 - Live voting close/reveal countdown and aggregate winner totals
-- One authoritative public contest per hour
+- One authoritative public contest per hour per language
 - OpenAI-compatible offline generation workers
-- 10-year archive tooling for `87,600` hourly rounds
+- 10-year archive tooling for `87,600` hourly slots per language
 - MIT-licensed open-source setup
 
 ## Run it
@@ -65,11 +66,11 @@ bun run archive:schedule
 Generate and schedule a full 10-year procedural archive:
 
 ```bash
-bun run archive:generate
+ARCHIVE_LANGUAGE=all bun run archive:generate
 bun run archive:schedule
 ```
 
-That creates `24 * 365 * 10 = 87,600` approved post candidates and schedules the same number of hourly rounds in SQLite. Runtime gameplay still only reads the current scheduled hour.
+That creates `24 * 365 * 10 = 87,600` approved post candidates. Scheduling creates one hourly round per supported language, so the default five-language schedule creates `438,000` round records. Runtime gameplay still only reads the current scheduled hour for the selected language.
 
 Useful one-off generation environment variables:
 
@@ -77,6 +78,7 @@ Useful one-off generation environment variables:
 - `AI_MODEL` defaults to `deepseek-chat`
 - `AI_MODEL_ID` defaults to `deepseek-v3-2`
 - `GENERATE_CATEGORY` can be `all`, `tech`, `politics`, `sports`, `celebrities`, or `random`
+- `GENERATE_LANGUAGE` can be `en`, `es`, `fr`, `pt`, or `de`
 
 Useful archive generation environment variables:
 
@@ -84,7 +86,16 @@ Useful archive generation environment variables:
 - `AI_MODEL` defaults to `openai/gpt-5.4-nano`
 - `AI_MODEL_ID` is stored as internal generation metadata only
 - `AI_ARCHIVE_CATEGORY` can be `all`, `tech`, `politics`, `sports`, `celebrities`, or `random`
+- `AI_ARCHIVE_LANGUAGE` can be `all`, `en`, `es`, `fr`, `pt`, or `de`; `all` rotates languages
 - `AI_BATCH_SIZE` defaults to `25`
+
+Scheduling defaults to every supported language:
+
+```bash
+bun run archive:schedule
+```
+
+Use `SCHEDULE_LANGUAGE=es` or `bun run archive:schedule -- --language=es` when you only want to schedule one language.
 
 There is a more detailed note in [docs/content-pipeline.md](./docs/content-pipeline.md).
 

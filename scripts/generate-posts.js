@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AUTHORS, CATEGORY_ORDER } from "../src/gameData.js";
+import { AUTHORS, CATEGORY_ORDER, LANGUAGES_BY_ID } from "../src/gameData.js";
 
 const rootDir = path.resolve(import.meta.dir, "..");
 const dataDir = path.join(rootDir, "data");
@@ -22,15 +22,22 @@ const args = new Map(
 
 const count = Number(args.get("count") ?? process.env.GENERATE_COUNT ?? 8);
 const requestedCategory = args.get("category") ?? process.env.GENERATE_CATEGORY ?? "all";
+const requestedLanguage = args.get("language") ?? process.env.GENERATE_LANGUAGE ?? "en";
 const dryRun = args.has("dry-run");
 
 if (!CATEGORY_ORDER.includes(requestedCategory)) {
   throw new Error(`Unknown category: ${requestedCategory}`);
 }
 
+if (!LANGUAGES_BY_ID.has(requestedLanguage)) {
+  throw new Error(`Unknown language: ${requestedLanguage}`);
+}
+
 if (!dryRun && !apiKey) {
   throw new Error("Set AI_API_KEY or DEEPSEEK_API_KEY, or pass --dry-run.");
 }
+
+const language = LANGUAGES_BY_ID.get(requestedLanguage);
 
 fs.mkdirSync(dataDir, { recursive: true });
 
@@ -43,6 +50,7 @@ db.exec(`
     author_id TEXT NOT NULL,
     model_id TEXT NOT NULL,
     text TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
     source_model TEXT NOT NULL,
     prompt_version TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'approved',
@@ -52,6 +60,8 @@ db.exec(`
   );
 `);
 
+ensureGeneratedPostsLanguageColumn();
+
 const insertPost = db.prepare(`
   INSERT OR IGNORE INTO generated_posts (
     id,
@@ -59,6 +69,7 @@ const insertPost = db.prepare(`
     author_id,
     model_id,
     text,
+    language,
     source_model,
     prompt_version,
     status,
@@ -66,11 +77,20 @@ const insertPost = db.prepare(`
     created_at,
     approved_at
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 function hashText(value) {
   return crypto.createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+
+function ensureGeneratedPostsLanguageColumn() {
+  const columns = db.prepare("PRAGMA table_info(generated_posts)").all();
+  const hasLanguage = columns.some((column) => column.name === "language");
+
+  if (!hasLanguage) {
+    db.exec("ALTER TABLE generated_posts ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
+  }
 }
 
 function pickAuthor(index) {
@@ -94,6 +114,7 @@ function buildPrompt(author) {
       content: JSON.stringify({
         task: "Write one fake tweet-like post.",
         constraints: [
+          `Write in ${language.name} (${language.nativeName}). ${language.instruction}`,
           "18 to 34 words.",
           "No hashtags.",
           "No emojis.",
@@ -120,7 +141,7 @@ function buildPrompt(author) {
 async function generateText(author) {
   if (dryRun) {
     return {
-      text: `Dry-run post for ${author.name}: the take is overconfident, oddly specific, and absolutely convinced the group chat is history.`,
+      text: `Dry-run ${language.name} post for ${author.name}: ${dryRunText(language.id)}`,
       raw: { dryRun: true },
     };
   }
@@ -157,6 +178,18 @@ async function generateText(author) {
   return { text, raw };
 }
 
+function dryRunText(languageId) {
+  const samples = {
+    de: "der Take ist zu selbstsicher, seltsam spezifisch und absolut überzeugt, dass der Gruppenchat Geschichte schreibt.",
+    en: "the take is overconfident, oddly specific, and absolutely convinced the group chat is history.",
+    es: "la opinión llega demasiado segura, raramente específica y convencida de que el chat grupal está haciendo historia.",
+    fr: "l'avis est trop sûr de lui, étrangement précis, et persuadé que le groupe privé écrit déjà l'histoire.",
+    pt: "a opinião chega confiante demais, estranhamente específica e convencida de que o grupo já virou história.",
+  };
+
+  return samples[languageId] ?? samples.en;
+}
+
 for (let index = 0; index < count; index += 1) {
   const author = pickAuthor(index);
   const { text, raw } = await generateText(author);
@@ -169,6 +202,7 @@ for (let index = 0; index < count; index += 1) {
     author.id,
     modelId,
     text,
+    language.id,
     model,
     promptVersion,
     "approved",

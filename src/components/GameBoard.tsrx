@@ -127,7 +127,7 @@ component ResultList({ items }) {
   </div>
 }
 
-export component GameBoard({ category }) {
+export component GameBoard({ category, language = "en" }) {
   const [clientId] = useState(getClientId);
   const [round, setRound] = useState(null);
   const [error, setError] = useState("");
@@ -164,7 +164,7 @@ export component GameBoard({ category }) {
 
     const target = new Date(round.status === "open" ? round.locksAt : round.revealsAt).getTime();
     const timeout = window.setTimeout(() => {
-      fetchCurrentRound(category, clientId)
+      fetchCurrentRound(category, clientId, language)
         .then((nextRound) => {
           setRound(nextRound);
           setHandleGuess("");
@@ -174,12 +174,12 @@ export component GameBoard({ category }) {
     }, Math.max(0, target - Date.now()) + 800);
 
     return () => window.clearTimeout(timeout);
-  }, [category, clientId, round?.id, round?.locksAt, round?.revealsAt, round?.status]);
+  }, [category, clientId, language, round?.id, round?.locksAt, round?.revealsAt, round?.status]);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchCurrentRound(category, clientId, controller.signal)
+    fetchCurrentRound(category, clientId, language, controller.signal)
       .then((nextRound) => {
         setRound(nextRound);
         setHandleGuess("");
@@ -192,16 +192,16 @@ export component GameBoard({ category }) {
       });
 
     return () => controller.abort();
-  }, [category, clientId]);
+  }, [category, clientId, language]);
 
   useEffect(() => {
-    const socket = createRoundSocket(category);
+    const socket = createRoundSocket(category, language);
 
     socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);
 
       if (message.type === "round:update") {
-        fetchCurrentRound(category, clientId)
+        fetchCurrentRound(category, clientId, language)
           .then((nextRound) => {
             setRound(nextRound);
             setHandleGuess("");
@@ -212,7 +212,7 @@ export component GameBoard({ category }) {
     });
 
     return () => socket.close();
-  }, [category, clientId]);
+  }, [category, clientId, language]);
 
   async function submitPick(payload) {
     if (!round || pending || !isOpen) {
@@ -259,12 +259,12 @@ export component GameBoard({ category }) {
       </h1>
 
       <div class="genre-strip">
-        {round ? `Filed under · ${postMeta.name}` : "Fetching live round"}
+        {round ? `Filed under · ${postMeta.name} · ${round.post.languageNativeName}` : "Fetching live round"}
       </div>
       <div class="contest-strip">
         {round
           ? `${formatContestCountdown(round.contest?.endsAt)} · ${round.contest?.roundNumber ?? "?"}/${round.contest?.totalRounds ?? "?"}`
-          : "87,600 round archive"}
+          : "438,000 language-room archive"}
       </div>
 
       <div class="phase-meter" data-phase={round?.status ?? "loading"}>

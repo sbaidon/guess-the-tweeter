@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import {
   AUTHORS_BY_ID,
+  DEFAULT_LANGUAGE,
+  LANGUAGE_ORDER,
+  LANGUAGES_BY_ID,
   POSTS_BY_ID,
   getAuthorsForMode,
   getPostsForCategory,
@@ -20,6 +23,7 @@ const dbPath = process.env.DATABASE_PATH ?? path.join(dataDir, "guess-the-tweete
 const port = Number(process.env.PORT ?? 8787);
 const adminToken = process.env.ADMIN_TOKEN ?? "";
 const publicCategory = "all";
+const defaultLanguage = DEFAULT_LANGUAGE;
 const roundLengthMs = 60 * 60 * 1000;
 const lockOffsetMs = 50 * 60 * 1000;
 const revealOffsetMs = 55 * 60 * 1000;
@@ -67,6 +71,7 @@ db.exec(`
     author_id TEXT NOT NULL,
     model_id TEXT NOT NULL,
     text TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
     source_model TEXT NOT NULL,
     prompt_version TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'approved',
@@ -75,6 +80,8 @@ db.exec(`
     approved_at INTEGER
   );
 `);
+
+ensureGeneratedPostsLanguageColumn();
 
 const statements = {
   getRound: db.prepare("SELECT * FROM rounds WHERE id = ?"),
@@ -120,6 +127,7 @@ const statements = {
   `),
   setRoundStatus: db.prepare("UPDATE rounds SET status_override = ? WHERE id = ?"),
   clearSubmissions: db.prepare("DELETE FROM submissions WHERE round_id = ?"),
+  deleteRound: db.prepare("DELETE FROM rounds WHERE id = ?"),
   getGeneratedPost: db.prepare("SELECT * FROM generated_posts WHERE id = ? AND status = 'approved'"),
   getGeneratedPosts: db.prepare("SELECT * FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC"),
 };
@@ -172,8 +180,18 @@ function generatedRowToPost(row) {
     category: row.category,
     authorId: row.author_id,
     modelId: row.model_id,
+    language: row.language ?? "en",
     text: row.text,
   };
+}
+
+function postLanguage(post) {
+  return post.language ?? defaultLanguage;
+}
+
+function roundLanguage(round) {
+  const [language] = String(round.id).split(":");
+  return LANGUAGES_BY_ID.has(language) ? language : defaultLanguage;
 }
 
 function getGeneratedPostsForCategory(category) {
@@ -185,6 +203,10 @@ function getGeneratedPostsForCategory(category) {
 
 function getPlayablePostsForCategory(category) {
   return [...getPostsForCategory(category), ...getGeneratedPostsForCategory(category)];
+}
+
+function getPlayablePostsForLanguage(category, language) {
+  return getPlayablePostsForCategory(category).filter((post) => postLanguage(post) === language);
 }
 
 function getPlayablePost(postId) {
@@ -203,8 +225,10 @@ function getPlayablePost(postId) {
   return generatedRowToPost(generatedPost);
 }
 
-function createRoundRecord(category, startsAt, idPrefix = "hourly") {
-  const post = seededPick(getPlayablePostsForCategory(category), `${category}:${startsAt}:post`);
+function createRoundRecord(category, startsAt, idPrefix = "hourly", language = defaultLanguage) {
+  const languagePosts = getPlayablePostsForLanguage(category, language);
+  const playablePosts = languagePosts.length ? languagePosts : getPlayablePostsForCategory(category);
+  const post = seededPick(playablePosts, `${category}:${language}:${startsAt}:post`);
   const authorPool = getAuthorsForMode(category, post.category).filter(
     (author) => author.id !== post.authorId,
   );
@@ -213,7 +237,7 @@ function createRoundRecord(category, startsAt, idPrefix = "hourly") {
     .map((author) => author.id);
 
   return {
-    id: `${category}:${idPrefix}:${startsAt}`,
+    id: `${language}:${category}:${idPrefix}:${startsAt}`,
     category,
     postId: post.id,
     authorChoiceIds: JSON.stringify(
@@ -251,15 +275,30 @@ function currentHourStart(now = Date.now()) {
 }
 
 function ensureCurrentRound(category, now = Date.now()) {
+  return ensureCurrentRoundForLanguage(category, defaultLanguage, now);
+}
+
+function ensureCurrentRoundForLanguage(category, language = defaultLanguage, now = Date.now()) {
   const startsAt = currentHourStart(now);
-  const roundId = `${category}:hourly:${startsAt}`;
+  const roundId = `${language}:${category}:hourly:${startsAt}`;
   const existingRound = statements.getRound.get(roundId);
 
   if (existingRound) {
-    return existingRound;
+    const existingPost = getPlayablePost(existingRound.post_id);
+
+    if (existingPost && postLanguage(existingPost) === language) {
+      return existingRound;
+    }
+
+    statements.deleteRound.run(roundId);
   }
 
-  return insertRound(createRoundRecord(category, startsAt));
+  return insertRound(createRoundRecord(category, startsAt, "hourly", language));
+}
+
+function getRequestLanguage(url) {
+  const language = url.searchParams.get("language") ?? defaultLanguage;
+  return LANGUAGES_BY_ID.has(language) ? language : defaultLanguage;
 }
 
 function computeStatus(round, now = Date.now()) {
@@ -307,6 +346,7 @@ function publicRound(round, clientId) {
 
   const authorChoiceIds = [...new Set([post.authorId, ...parseChoices(round.author_choice_ids)])]
     .filter((authorId) => AUTHORS_BY_ID.has(authorId));
+  const language = roundLanguage(round);
   const submissions = statements.getSubmissions.all(round.id);
   const submission = clientId ? statements.getSubmission.get(round.id, clientId) : null;
   const payload = {
@@ -319,6 +359,9 @@ function publicRound(round, clientId) {
     post: {
       id: post.id,
       category: post.category,
+      language,
+      languageName: LANGUAGES_BY_ID.get(language)?.name ?? "English",
+      languageNativeName: LANGUAGES_BY_ID.get(language)?.nativeName ?? "English",
       text: post.text,
     },
     authorChoices: authorChoiceIds.map((authorId) => AUTHORS_BY_ID.get(authorId)),
@@ -329,7 +372,7 @@ function publicRound(round, clientId) {
       : null,
     totals: {
       submissions: statements.countSubmissions.get(round.id).count,
-      connected: countConnections(round.category),
+      connected: countConnections(language),
     },
     contest: {
       startsAt: new Date(contest.startsAt).toISOString(),
@@ -361,6 +404,15 @@ function publicRound(round, clientId) {
   }
 
   return payload;
+}
+
+function ensureGeneratedPostsLanguageColumn() {
+  const columns = db.prepare("PRAGMA table_info(generated_posts)").all();
+  const hasLanguage = columns.some((column) => column.name === "language");
+
+  if (!hasLanguage) {
+    db.exec("ALTER TABLE generated_posts ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
+  }
 }
 
 function json(response, statusCode, body) {
@@ -409,17 +461,20 @@ function requireAdmin(request, response) {
 
 async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/rounds/current") {
-    const round = ensureCurrentRound(publicCategory);
+    const round = ensureCurrentRoundForLanguage(publicCategory, getRequestLanguage(url));
     return json(response, 200, publicRound(round, url.searchParams.get("clientId")));
   }
 
   if (request.method === "GET" && url.pathname === "/api/rounds/history") {
+    const language = getRequestLanguage(url);
     const requestedLimit = Number(url.searchParams.get("limit") ?? 12);
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(50, Math.max(1, requestedLimit))
       : 12;
     const rounds = statements.getPastRounds
-      .all(Date.now(), limit)
+      .all(Date.now(), limit * 10)
+      .filter((round) => round.id.startsWith(`${language}:`) || (!round.id.includes(":all:") && language === defaultLanguage))
+      .slice(0, limit)
       .map((round) => publicRound(round));
 
     return json(response, 200, { rounds });
@@ -460,7 +515,7 @@ async function handleApi(request, response, url) {
       now,
     );
 
-    broadcastUpdate(round.category);
+    broadcastUpdate(roundLanguage(round));
     return json(response, 200, publicRound(round, body.clientId));
   }
 
@@ -479,7 +534,7 @@ async function handleApi(request, response, url) {
     }
 
     statements.setRoundStatus.run("revealed", roundId);
-    broadcastUpdate(round.category);
+    broadcastUpdate(roundLanguage(round));
     return json(response, 200, publicRound(statements.getRound.get(roundId)));
   }
 
@@ -499,7 +554,7 @@ async function handleApi(request, response, url) {
 
     statements.clearSubmissions.run(roundId);
     statements.setRoundStatus.run(null, roundId);
-    broadcastUpdate(round.category);
+    broadcastUpdate(roundLanguage(round));
     return json(response, 200, publicRound(statements.getRound.get(roundId)));
   }
 
@@ -553,11 +608,11 @@ const server = http.createServer(async (request, response) => {
 const wss = new WebSocketServer({ server, path: "/ws" });
 const sockets = new Set();
 
-function countConnections(category) {
+function countConnections(channel) {
   let count = 0;
 
   for (const socket of sockets) {
-    if (socket.readyState === socket.OPEN && socket.category === category) {
+    if (socket.readyState === socket.OPEN && socket.category === channel) {
       count += 1;
     }
   }
@@ -574,7 +629,8 @@ function broadcastUpdate(category) {
 }
 
 wss.on("connection", (socket, request) => {
-  socket.category = publicCategory;
+  const url = new URL(request.url, `http://${request.headers.host}`);
+  socket.category = getRequestLanguage(url);
   sockets.add(socket);
   socket.send(JSON.stringify({ type: "round:update", category: socket.category }));
   broadcastUpdate(socket.category);
@@ -586,7 +642,9 @@ wss.on("connection", (socket, request) => {
 });
 
 ensureContestSettings();
-ensureCurrentRound(publicCategory);
+for (const language of LANGUAGE_ORDER) {
+  ensureCurrentRoundForLanguage(publicCategory, language);
+}
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`Guess the Tweeter server listening on http://127.0.0.1:${port}`);

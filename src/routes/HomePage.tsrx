@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { DEFAULT_LANGUAGE } from "../gameData";
 
 export component HomePage() {
   <section class="home-card">
@@ -6,10 +7,10 @@ export component HomePage() {
     <h1>{"Guess who posted the fake tweet."}</h1>
     <p>
       {
-        "A live round shows one fake post. Type the handle, place your slip, and watch the crowd ledger after reveal."
+        "A live round shows one fake multilingual post. Type the real handle, place your slip, and watch the crowd ledger after reveal."
       }
     </p>
-    <Link className="button button--primary" to="/play">
+    <Link className="button button--primary" params={{ language: DEFAULT_LANGUAGE }} to="/play/$language">
       {"Play current round"}
     </Link>
   </section>

@@ -4,7 +4,7 @@
 
 Make parody prompt generation cheap, scalable, and easy for open-source contributors to swap between providers when better models become available.
 
-The runtime game is designed around shared rounds. One generated or curated prompt can serve every player in an hourly room, so player traffic mostly affects SQLite writes and WebSocket fanout rather than model spend.
+The runtime game is designed around shared rounds. One generated or curated prompt can serve every player in an hourly room, so player traffic mostly affects SQLite writes and WebSocket fanout rather than model spend. Each supported language has its own hourly room and archive stream.
 
 ## Recommendation
 
@@ -17,6 +17,7 @@ Instead:
 3. Store approved candidates in SQLite with metadata:
    - category
    - real public handle/persona
+   - language
    - internal model metadata for cost/debugging
    - prompt template version
    - source model
@@ -28,11 +29,11 @@ Do not generate synchronously when a player opens the game. If the provider is s
 For a no-provider baseline, the repo also has procedural archive tooling:
 
 ```bash
-bun run archive:generate
+ARCHIVE_LANGUAGE=all bun run archive:generate
 bun run archive:schedule
 ```
 
-The default target is `24 * 365 * 10 = 87,600` approved posts and 87,600 hourly rounds.
+The default target is `24 * 365 * 10 = 87,600` approved posts. Scheduling now creates one hourly round per supported language, so the default five-language schedule creates 438,000 hourly room records.
 
 For a batched AI archive:
 
@@ -53,12 +54,13 @@ bun run archive:schedule
 
 - A single Bun process serves HTTP, static assets, and WebSockets.
 - SQLite stores generated posts, rounds, and submissions.
-- There is one authoritative public hourly round.
+- There is one authoritative public hourly round per language.
 - The public API exposes contest start/end metadata so the UI can show the archive countdown.
 - The player UI counts down to the vote lock and reveal windows.
 - Submissions are hidden until the round reveals.
 - After reveal, the server publishes aggregate author pick distributions.
 - Revealed rounds are available from the archive API for past-round browsing.
+- Public routes are language-scoped: `/play/en`, `/play/es`, `/archive/en`, `/archive/es`, etc.
 
 ## Suggested provider interface
 
@@ -70,12 +72,14 @@ Environment variables:
 - `AI_API_KEY`
 - `AI_MODEL`
 - `AI_MODEL_ID`
+- `AI_ARCHIVE_LANGUAGE`
 
 Defaults for the batched archive generator:
 
 - `AI_BASE_URL=https://openrouter.ai/api/v1`
 - `AI_MODEL=openai/gpt-5.4-nano`
 - `AI_MODEL_ID=openai/gpt-5.4-nano`
+- `AI_ARCHIVE_LANGUAGE=all` rotates English, Spanish, French, Portuguese, and German.
 
 For direct DeepSeek one-off generation, `scripts/generate-posts.js` still defaults to:
 

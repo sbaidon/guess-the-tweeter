@@ -15,8 +15,8 @@ export function getClientId() {
   return nextId;
 }
 
-export async function fetchCurrentRound(category, clientId, signal) {
-  const params = new URLSearchParams({ category, clientId });
+export async function fetchCurrentRound(category, clientId, language = "en", signal) {
+  const params = new URLSearchParams({ category, clientId, language });
   const response = await fetch(`/api/rounds/current?${params.toString()}`, { signal });
 
   if (!response.ok) {
@@ -42,8 +42,8 @@ export async function submitRoundPick(roundId, payload) {
   return response.json();
 }
 
-export async function fetchRoundHistory(limit = 12, signal) {
-  const params = new URLSearchParams({ limit: String(limit) });
+export async function fetchRoundHistory(limit = 12, language = "en", signal) {
+  const params = new URLSearchParams({ limit: String(limit), language });
   const response = await fetch(`/api/rounds/history?${params.toString()}`, { signal });
 
   if (!response.ok) {
@@ -82,7 +82,8 @@ async function adminRequest(url, adminToken, body = {}) {
   return response.json();
 }
 
-export function createRoundSocket(category) {
+export function createRoundSocket(category, language = "en") {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return new WebSocket(`${protocol}//${window.location.host}/ws?category=${category}`);
+  const params = new URLSearchParams({ category, language });
+  return new WebSocket(`${protocol}//${window.location.host}/ws?${params.toString()}`);
 }

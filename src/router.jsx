@@ -4,9 +4,10 @@ import {
   createRoute,
   createRouter,
   redirect,
+  useParams,
 } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppLayout.tsrx";
-import { isCategoryKey } from "./gameData";
+import { DEFAULT_LANGUAGE, isLanguageKey } from "./gameData";
 import { ArchivePage } from "./routes/ArchivePage.tsrx";
 import { HomePage } from "./routes/HomePage.tsrx";
 import { PlayPage } from "./routes/PlayPage.tsrx";
@@ -28,33 +29,68 @@ const homeRoute = createRoute({
 const playRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/play",
-  component: PlayPage,
+  beforeLoad: () => {
+    throw redirect({
+      to: "/play/$language",
+      params: { language: DEFAULT_LANGUAGE },
+    });
+  },
+  component: () => <PlayPage language={DEFAULT_LANGUAGE} />,
 });
 
 const archiveRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/archive",
-  component: ArchivePage,
-});
-
-const legacyPlayRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/play/$category",
-  beforeLoad: ({ params }) => {
-    if (!isCategoryKey(params.category)) {
-      throw redirect({
-        to: "/play",
-      });
-    }
-
+  beforeLoad: () => {
     throw redirect({
-      to: "/play",
+      to: "/archive/$language",
+      params: { language: DEFAULT_LANGUAGE },
     });
   },
-  component: PlayPage,
+  component: () => <ArchivePage language={DEFAULT_LANGUAGE} />,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, playRoute, archiveRoute, legacyPlayRoute]);
+const playLanguageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/play/$language",
+  beforeLoad: ({ params }) => {
+    if (!isLanguageKey(params.language)) {
+      throw redirect({
+        to: "/play/$language",
+        params: { language: DEFAULT_LANGUAGE },
+      });
+    }
+  },
+  component: () => {
+    const { language } = useParams({ from: "/play/$language" });
+    return <PlayPage language={language} />;
+  },
+});
+
+const archiveLanguageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/archive/$language",
+  beforeLoad: ({ params }) => {
+    if (!isLanguageKey(params.language)) {
+      throw redirect({
+        to: "/archive/$language",
+        params: { language: DEFAULT_LANGUAGE },
+      });
+    }
+  },
+  component: () => {
+    const { language } = useParams({ from: "/archive/$language" });
+    return <ArchivePage language={language} />;
+  },
+});
+
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  playRoute,
+  playLanguageRoute,
+  archiveRoute,
+  archiveLanguageRoute,
+]);
 
 export const router = createRouter({
   routeTree,

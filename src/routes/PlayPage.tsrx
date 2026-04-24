@@ -1,8 +1,9 @@
 import { GameBoard } from "../components/GameBoard.tsrx";
-import { CATEGORY_META } from "../gameData";
+import { CATEGORY_META, DEFAULT_LANGUAGE, LANGUAGES_BY_ID } from "../gameData";
 
-export component PlayPage() {
+export component PlayPage({ language = DEFAULT_LANGUAGE }) {
   const meta = CATEGORY_META.all;
+  const languageMeta = LANGUAGES_BY_ID.get(language);
 
   <div
     class="play-shell"
@@ -11,7 +12,10 @@ export component PlayPage() {
       "--active-accent-soft": meta.soft,
     }}
   >
-    <GameBoard category="all" />
+    <GameBoard category="all" language={language} />
+    <p class="language-caption">
+      {`${languageMeta?.nativeName ?? "English"} room · one hourly round`}
+    </p>
   </div>
 
   <style>

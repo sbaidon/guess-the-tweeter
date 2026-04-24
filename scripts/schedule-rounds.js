@@ -3,6 +3,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  DEFAULT_LANGUAGE,
+  LANGUAGE_ORDER,
   POSTS,
   getAuthorsForMode,
 } from "../src/gameData.js";
@@ -23,12 +25,17 @@ const lockOffsetMs = 50 * 60 * 1000;
 const revealOffsetMs = 55 * 60 * 1000;
 const years = Number(args.get("years") ?? process.env.SCHEDULE_YEARS ?? 10);
 const roundCount = Number(args.get("rounds") ?? process.env.SCHEDULE_ROUNDS ?? 24 * 365 * years);
+const requestedLanguage = args.get("language") ?? process.env.SCHEDULE_LANGUAGE ?? "all";
 const startAt = args.get("start")
   ? Date.parse(args.get("start"))
   : currentHourStart(Date.now());
 
 if (!Number.isFinite(startAt)) {
   throw new Error("Invalid --start. Use an ISO date.");
+}
+
+if (requestedLanguage !== "all" && !LANGUAGE_ORDER.includes(requestedLanguage)) {
+  throw new Error(`Unknown --language: ${requestedLanguage}`);
 }
 
 fs.mkdirSync(dataDir, { recursive: true });
@@ -60,6 +67,7 @@ db.exec(`
     author_id TEXT NOT NULL,
     model_id TEXT NOT NULL,
     text TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
     source_model TEXT NOT NULL,
     prompt_version TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'approved',
@@ -68,6 +76,8 @@ db.exec(`
     approved_at INTEGER
   );
 `);
+
+ensureGeneratedPostsLanguageColumn();
 
 const insertRound = db.prepare(`
   INSERT OR IGNORE INTO rounds (
@@ -92,17 +102,19 @@ const setSetting = db.prepare(`
 `);
 
 const generatedPosts = db
-  .prepare("SELECT id, category, author_id, model_id, text FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC")
+  .prepare("SELECT id, category, author_id, model_id, text, language FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC")
   .all()
   .map((post) => ({
     id: post.id,
     category: post.category,
     authorId: post.author_id,
     modelId: post.model_id,
+    language: post.language ?? "en",
     text: post.text,
   }));
 
 const playablePosts = [...POSTS, ...generatedPosts];
+const scheduleLanguages = requestedLanguage === "all" ? LANGUAGE_ORDER : [requestedLanguage];
 
 if (!playablePosts.length) {
   throw new Error("No playable posts found.");
@@ -117,6 +129,15 @@ function currentHourStart(now = Date.now()) {
 function hashToInt(value) {
   const hash = crypto.createHash("sha256").update(value).digest("hex").slice(0, 12);
   return Number.parseInt(hash, 16);
+}
+
+function ensureGeneratedPostsLanguageColumn() {
+  const columns = db.prepare("PRAGMA table_info(generated_posts)").all();
+  const hasLanguage = columns.some((column) => column.name === "language");
+
+  if (!hasLanguage) {
+    db.exec("ALTER TABLE generated_posts ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
+  }
 }
 
 function seededShuffle(items, seed) {
@@ -135,7 +156,7 @@ function createRound(post, startsAt, index) {
     .slice(0, 3)
     .map((author) => author.id);
   return [
-    `${publicCategory}:hourly:${startsAt}`,
+    `${post.language ?? DEFAULT_LANGUAGE}:${publicCategory}:hourly:${startsAt}`,
     publicCategory,
     post.id,
     JSON.stringify(seededShuffle([post.authorId, ...authorChoiceIds], `${startsAt}:author-order`)),
@@ -160,8 +181,15 @@ const batch = [];
 
 for (let index = 0; index < roundCount; index += 1) {
   const startsAt = startAt + index * roundLengthMs;
-  const post = playablePosts[index % playablePosts.length];
-  batch.push(createRound(post, startsAt, index));
+  for (const language of scheduleLanguages) {
+    const languagePosts = playablePosts.filter((post) => (post.language ?? DEFAULT_LANGUAGE) === language);
+    const postPool = languagePosts.length ? languagePosts : playablePosts;
+    const post = {
+      ...postPool[index % postPool.length],
+      language,
+    };
+    batch.push(createRound(post, startsAt, index));
+  }
 
   if (batch.length >= 1000) {
     insertMany(batch.splice(0));
@@ -178,6 +206,7 @@ setSetting.run("contest:end_at", String(endAt));
 
 console.log(`Scheduled rounds requested: ${roundCount}`);
 console.log(`Inserted new rounds: ${inserted}`);
+console.log(`Languages: ${scheduleLanguages.join(", ")}`);
 console.log(`Contest starts: ${new Date(startAt).toISOString()}`);
 console.log(`Contest ends: ${new Date(endAt).toISOString()}`);
 console.log(`Playable post pool: ${playablePosts.length}`);
