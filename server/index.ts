@@ -763,6 +763,17 @@ function isJsonRequest(request: IncomingMessage): boolean {
   return typeof contentType === "string" && contentType.toLowerCase().includes("application/json");
 }
 
+function isBodyTooLarge(request: IncomingMessage): boolean {
+  const contentLength = request.headers["content-length"];
+
+  if (typeof contentLength !== "string") {
+    return false;
+  }
+
+  const bodyBytes = Number(contentLength);
+  return Number.isFinite(bodyBytes) && bodyBytes > maxJsonBodyBytes;
+}
+
 async function readJson(request: IncomingMessage): Promise<SubmissionBody> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
@@ -834,6 +845,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
 
     if (!isJsonRequest(request)) {
       return unsupportedMediaType(response);
+    }
+
+    if (isBodyTooLarge(request)) {
+      return payloadTooLarge(response);
     }
 
     if (computeStatus(round) !== "open") {
