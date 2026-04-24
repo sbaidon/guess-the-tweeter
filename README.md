@@ -75,6 +75,15 @@ DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite bun run conten
 
 By default this review command only shows generated rows that are still playable: supported genre, approved status, and an author native to the row language. Add `--include-inactive` when auditing stale experiments.
 
+Promote reviewed generated posts between databases:
+
+```bash
+bun run content:export -- --out=/tmp/generated-posts.jsonl
+DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite bun run content:import -- --file=/tmp/generated-posts.jsonl
+```
+
+Promotion defaults to `--source=ai`, which excludes the procedural long-horizon filler archive. Use `--source=all` only when intentionally moving both AI and procedural rows.
+
 Estimate and generate a larger AI archive through OpenRouter:
 
 ```bash

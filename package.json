@@ -15,6 +15,8 @@
     "typecheck:server": "bunx tsc -p tsconfig.server.json",
     "generate:posts": "bun scripts/generate-posts.js",
     "content:review": "bun scripts/review-generated-posts.js",
+    "content:export": "bun scripts/export-generated-posts.js",
+    "content:import": "bun scripts/import-generated-posts.js",
     "archive:estimate-ai": "bun scripts/generate-ai-archive.js --estimate",
     "archive:generate-ai": "bun scripts/generate-ai-archive.js",
     "archive:generate": "bun scripts/pregenerate-archive.js",
