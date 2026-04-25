@@ -131,10 +131,24 @@ type ContestSettings = {
   endsAt: number;
 };
 
-type PublicRoundPayload = {
+type RoundReveal = {
+  answer: { author: Author; model: Model };
+  results: {
+    authorTotal: number;
+    winnerCount: number;
+    winnerPercentage: number;
+    authors: Array<{
+      author: Author;
+      count: number;
+      percentage: number;
+      correct: boolean;
+    }>;
+  };
+};
+
+type RoundBase = {
   id: string;
   category: CategoryKey;
-  status: RoundStatus;
   startsAt: string;
   locksAt: string;
   revealsAt: string;
@@ -146,7 +160,7 @@ type PublicRoundPayload = {
     languageNativeName: string;
     text: string;
   };
-  authorChoices: Array<Author | undefined>;
+  authorChoices: Author[];
   modelChoices: Model[];
   submission: {
     authorId: string | null;
@@ -160,31 +174,18 @@ type PublicRoundPayload = {
     submissions: number;
     connected: number;
   };
-  player?: {
-    points: number;
-  };
+  player?: { points: number };
   contest: {
     startsAt: string;
     endsAt: string;
     roundNumber: number;
     totalRounds: number;
   };
-  answer?: {
-    author: Author | undefined;
-    model: Model;
-  };
-  results?: {
-    authorTotal: number;
-    winnerCount: number;
-    winnerPercentage: number;
-    authors: Array<{
-      author: Author | undefined;
-      count: number;
-      percentage: number;
-      correct: boolean;
-    }>;
-  };
 };
+
+type PublicRoundPayload =
+  | (RoundBase & { status: "open" | "locked" })
+  | (RoundBase & { status: "revealed" } & RoundReveal);
 
 type SubmissionBody = {
   clientId?: unknown;
@@ -840,6 +841,12 @@ function getStoredAuthorTotal(roundId: string): number {
   return (statements.getRoundTotal.get(roundId) as CountRow | null)?.count ?? 0;
 }
 
+function lookupAuthor(authorId: string): Author {
+  const author = AUTHORS_BY_ID.get(authorId);
+  if (!author) throw new Error(`Unknown author: ${authorId}`);
+  return author as Author;
+}
+
 function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayload {
   const status = computeStatus(round);
   const post = getPlayablePost(round.post_id);
@@ -860,10 +867,9 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
     ? (statements.getSubmission.get(round.id, clientId) as SubmissionRow | null)
     : null;
   const authorTotal = getStoredAuthorTotal(round.id);
-  const payload: PublicRoundPayload = {
+  const base: RoundBase = {
     id: round.id,
     category: round.category,
-    status,
     startsAt: new Date(round.starts_at).toISOString(),
     locksAt: new Date(round.locks_at).toISOString(),
     revealsAt: new Date(round.reveals_at).toISOString(),
@@ -875,16 +881,14 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
       languageNativeName: LANGUAGES_BY_ID.get(language)?.nativeName ?? "English",
       text: post.text,
     },
-    authorChoices: authorChoiceIds.map((authorId) => AUTHORS_BY_ID.get(authorId) as Author | undefined),
+    authorChoices: authorChoiceIds.map(lookupAuthor),
     modelChoices: modelChoiceIds.map(getModelOption),
     submission: submission
       ? {
           authorId: submission.author_choice_id,
           authorGuess:
             submission.author_guess_text ??
-            (submission.author_choice_id
-              ? ((AUTHORS_BY_ID.get(submission.author_choice_id) as Author | undefined)?.handle ?? null)
-              : null),
+            (submission.author_choice_id ? lookupAuthor(submission.author_choice_id).handle : null),
           modelId: submission.model_choice_id,
           stake: submission.stake,
           payout: submission.payout,
@@ -904,41 +908,44 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
   };
 
   if (clientId) {
-    const player = ensurePlayer(clientId);
-    payload.player = { points: player.points };
+    base.player = { points: ensurePlayer(clientId).points };
   }
 
-  if (status === "revealed") {
-    const authorCounts = getAuthorCounts(round.id);
-    const resultAuthorIds = [
-      ...new Set([
-        post.authorId,
-        ...[...authorCounts.entries()]
-          .filter(([, count]) => count > 0)
-          .sort(([, leftCount], [, rightCount]) => rightCount - leftCount)
-          .map(([authorId]) => authorId),
-      ]),
-    ].filter((authorId) => authorChoiceIds.includes(authorId));
-    const winnerCount = authorCounts.get(post.authorId) ?? 0;
+  if (status !== "revealed") {
+    return { ...base, status };
+  }
 
-    payload.answer = {
-      author: AUTHORS_BY_ID.get(post.authorId) as Author | undefined,
+  const authorCounts = getAuthorCounts(round.id);
+  const resultAuthorIds = [
+    ...new Set([
+      post.authorId,
+      ...[...authorCounts.entries()]
+        .filter(([, count]) => count > 0)
+        .sort(([, leftCount], [, rightCount]) => rightCount - leftCount)
+        .map(([authorId]) => authorId),
+    ]),
+  ].filter((authorId) => authorChoiceIds.includes(authorId));
+  const winnerCount = authorCounts.get(post.authorId) ?? 0;
+
+  return {
+    ...base,
+    status: "revealed",
+    answer: {
+      author: lookupAuthor(post.authorId),
       model: getModelOption(post.modelId),
-    };
-    payload.results = {
+    },
+    results: {
       authorTotal,
       winnerCount,
       winnerPercentage: authorTotal ? Math.round((winnerCount / authorTotal) * 100) : 0,
       authors: resultAuthorIds.map((authorId) => ({
-        author: AUTHORS_BY_ID.get(authorId) as Author | undefined,
+        author: lookupAuthor(authorId),
         count: authorCounts.get(authorId) ?? 0,
         percentage: authorTotal ? Math.round(((authorCounts.get(authorId) ?? 0) / authorTotal) * 100) : 0,
         correct: authorId === post.authorId,
       })),
-    };
-  }
-
-  return payload;
+    },
+  };
 }
 
 function ensureGeneratedPostsLanguageColumn(): void {
