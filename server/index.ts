@@ -146,7 +146,10 @@ type RoundReveal = {
   };
 };
 
-type AuthorPick = { handle: string; authorId: string | null };
+type AuthorPick =
+  | { kind: "matched"; authorId: string; handle: string }
+  | { kind: "freeform"; text: string };
+
 type Outcome = { settled: true; payout: number } | { settled: false };
 
 type Submission = {
@@ -853,10 +856,10 @@ function lookupAuthor(authorId: string): Author {
 function buildAuthorPick(submission: SubmissionRow): AuthorPick | null {
   if (submission.author_choice_id) {
     const handle = submission.author_guess_text ?? lookupAuthor(submission.author_choice_id).handle;
-    return { handle, authorId: submission.author_choice_id };
+    return { kind: "matched", authorId: submission.author_choice_id, handle };
   }
   if (submission.author_guess_text) {
-    return { handle: submission.author_guess_text, authorId: null };
+    return { kind: "freeform", text: submission.author_guess_text };
   }
   return null;
 }
@@ -871,13 +874,10 @@ function rankRevealAuthors(
   authorCounts: Map<string, number>,
   choiceIds: string[],
 ): string[] {
-  const choiceSet = new Set(choiceIds);
-  const votedByPopularity = [...authorCounts.entries()]
-    .filter(([, count]) => count > 0)
-    .sort(([, leftCount], [, rightCount]) => rightCount - leftCount)
-    .map(([authorId]) => authorId);
-  const ordered = [...new Set([correctId, ...votedByPopularity])];
-  return ordered.filter((authorId) => choiceSet.has(authorId));
+  const others = choiceIds
+    .filter((id) => id !== correctId && (authorCounts.get(id) ?? 0) > 0)
+    .sort((a, b) => (authorCounts.get(b) ?? 0) - (authorCounts.get(a) ?? 0));
+  return choiceIds.includes(correctId) ? [correctId, ...others] : others;
 }
 
 function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayload {

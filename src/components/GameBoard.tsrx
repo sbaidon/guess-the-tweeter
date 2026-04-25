@@ -159,6 +159,15 @@ function formatPayout(value) {
   return "0 pts";
 }
 
+function pickHandle(pick) {
+  if (!pick) return "";
+  return pick.kind === "matched" ? pick.handle : pick.text;
+}
+
+function pickAuthorId(pick) {
+  return pick && pick.kind === "matched" ? pick.authorId : null;
+}
+
 export component GameBoard({ category, language = "en" }) {
   const [clientId] = useState(getClientId);
   const [round, setRound] = useState(null);
@@ -175,8 +184,8 @@ export component GameBoard({ category, language = "en" }) {
   const player = round?.player ?? null;
   const submission = round?.submission ?? null;
   const placedAuthor = submission?.author ?? null;
-  const selectedAuthorGuess = placedAuthor ? placedAuthor.handle : "";
-  const selectedAuthorId = placedAuthor ? placedAuthor.authorId : null;
+  const selectedAuthorGuess = pickHandle(placedAuthor);
+  const selectedAuthorId = pickAuthorId(placedAuthor);
   const selectedModelId = submission?.modelId ?? null;
   const selectedModel =
     round?.modelChoices?.find((model) => model.id === selectedModelId) ?? null;
