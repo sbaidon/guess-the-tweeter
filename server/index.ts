@@ -934,6 +934,10 @@ function logError(message: string, error: unknown, meta: Record<string, unknown>
   );
 }
 
+function logWarn(message: string, meta: Record<string, unknown> = {}): void {
+  console.warn(JSON.stringify({ level: "warn", message, time: new Date().toISOString(), ...meta }));
+}
+
 function getClientIp(request: IncomingMessage): string {
   const forwardedFor = request.headers["x-forwarded-for"];
 
@@ -1188,6 +1192,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
 
     statements.setRoundStatus.run("revealed", roundId);
     markRoomDirty(roundLanguage(round));
+    logInfo("admin_action", { action: "reveal", roundId, ip: getClientIp(request) });
     return json(response, 200, publicRound(statements.getRound.get(roundId) as RoundRow));
   }
 
@@ -1210,6 +1215,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     statements.clearRoundTotal.run(roundId);
     statements.setRoundStatus.run(null, roundId);
     markRoomDirty(roundLanguage(round));
+    logInfo("admin_action", { action: "reset", roundId, ip: getClientIp(request) });
     return json(response, 200, publicRound(statements.getRound.get(roundId) as RoundRow));
   }
 
@@ -1356,6 +1362,16 @@ wss.on("connection", (socket: ChannelSocket, request: IncomingMessage) => {
     }
   });
 });
+
+if (!adminToken) {
+  if (process.env.NODE_ENV === "production") {
+    logError("startup_missing_admin_token", new Error("ADMIN_TOKEN must be set in production"));
+    process.exit(1);
+  }
+  logWarn("startup_admin_token_unset", {
+    note: "ADMIN_TOKEN is empty; admin endpoints will reject all requests",
+  });
+}
 
 ensureContestSettings();
 for (const language of LANGUAGE_ORDER) {

@@ -20,14 +20,19 @@ export component HostRoom({ category }) {
   const [clientId] = useState(getClientId);
   const [round, setRound] = useState(null);
   const [adminToken, setAdminToken] = useState(
-    () => window.localStorage.getItem("guess-the-tweeter-admin-token") ?? "",
+    () => window.sessionStorage.getItem("guess-the-tweeter-admin-token") ?? "",
   );
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const meta = CATEGORY_META[category];
 
   useEffect(() => {
-    window.localStorage.setItem("guess-the-tweeter-admin-token", adminToken);
+    if (adminToken) {
+      window.sessionStorage.setItem("guess-the-tweeter-admin-token", adminToken);
+    } else {
+      window.sessionStorage.removeItem("guess-the-tweeter-admin-token");
+    }
+    window.localStorage.removeItem("guess-the-tweeter-admin-token");
   }, [adminToken]);
 
   useEffect(() => {
