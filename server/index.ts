@@ -80,6 +80,7 @@ type SubmissionRow = {
   round_id: string;
   client_id: string;
   author_choice_id: string | null;
+  author_guess_text: string | null;
   model_choice_id: string | null;
   created_at: number;
   updated_at: number;
@@ -137,7 +138,7 @@ type PublicRoundPayload = {
   };
   authorChoices: Array<Author | undefined>;
   modelChoices: Model[];
-  submission: { authorId: string | null; modelId: string | null } | null;
+  submission: { authorId: string | null; authorGuess: string | null; modelId: string | null } | null;
   totals: {
     submissions: number;
     connected: number;
@@ -168,6 +169,7 @@ type PublicRoundPayload = {
 type SubmissionBody = {
   clientId?: unknown;
   authorId?: unknown;
+  authorGuess?: unknown;
   modelId?: unknown;
 };
 
@@ -280,6 +282,7 @@ db.exec(`
     round_id TEXT NOT NULL,
     client_id TEXT NOT NULL,
     author_choice_id TEXT,
+    author_guess_text TEXT,
     model_choice_id TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
@@ -323,6 +326,7 @@ db.exec(`
 `);
 
 ensureGeneratedPostsLanguageColumn();
+ensureSubmissionAuthorGuessColumn();
 ensureSubmissionCounters();
 
 const statements = {
@@ -351,13 +355,13 @@ const statements = {
   deleteSetting: db.prepare("DELETE FROM settings WHERE key = ?"),
   getSubmission: db.prepare("SELECT * FROM submissions WHERE round_id = ? AND client_id = ?"),
   insertSubmission: db.prepare(`
-    INSERT INTO submissions (round_id, client_id, author_choice_id, model_choice_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO submissions (round_id, client_id, author_choice_id, author_guess_text, model_choice_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(round_id, client_id) DO NOTHING
   `),
   updateSubmission: db.prepare(`
     UPDATE submissions
-    SET author_choice_id = ?, model_choice_id = ?, updated_at = ?
+    SET author_choice_id = ?, author_guess_text = ?, model_choice_id = ?, updated_at = ?
     WHERE round_id = ? AND client_id = ?
   `),
   getRoundTotal: db.prepare("SELECT author_total AS count FROM round_totals WHERE round_id = ?"),
@@ -399,13 +403,19 @@ const recordSubmission = db.transaction(
     roundId: string,
     clientId: string,
     authorId: string | undefined,
+    authorGuess: string | undefined,
     modelId: string | undefined,
     now: number,
   ): boolean => {
     const existingSubmission = statements.getSubmission.get(roundId, clientId) as SubmissionRow | null;
     const nextAuthorId = authorId ?? existingSubmission?.author_choice_id ?? null;
+    const nextAuthorGuess = authorGuess ?? existingSubmission?.author_guess_text ?? null;
     const nextModelId = modelId ?? existingSubmission?.model_choice_id ?? null;
-    const authorChanged = Boolean(authorId && authorId !== existingSubmission?.author_choice_id);
+    const authorChanged = Boolean(
+      authorGuess !== undefined &&
+        (nextAuthorGuess !== existingSubmission?.author_guess_text ||
+          nextAuthorId !== existingSubmission?.author_choice_id),
+    );
     const modelChanged = Boolean(modelId && modelId !== existingSubmission?.model_choice_id);
 
     if (!authorChanged && !modelChanged) {
@@ -413,33 +423,55 @@ const recordSubmission = db.transaction(
     }
 
     if (existingSubmission) {
-      const result = statements.updateSubmission.run(nextAuthorId, nextModelId, now, roundId, clientId);
+      const result = statements.updateSubmission.run(
+        nextAuthorId,
+        nextAuthorGuess,
+        nextModelId,
+        now,
+        roundId,
+        clientId,
+      );
 
       if (result.changes === 0) {
         return false;
       }
 
       if (authorChanged) {
-        if (existingSubmission.author_choice_id) {
+        if (existingSubmission.author_choice_id && existingSubmission.author_choice_id !== nextAuthorId) {
           statements.decrementAuthorCount.run(roundId, existingSubmission.author_choice_id);
-        } else {
+        }
+
+        if (!existingSubmission.author_guess_text) {
           statements.incrementRoundTotal.run(roundId);
         }
 
-        statements.incrementAuthorCount.run(roundId, authorId);
+        if (nextAuthorId && nextAuthorId !== existingSubmission.author_choice_id) {
+          statements.incrementAuthorCount.run(roundId, nextAuthorId);
+        }
       }
 
       return true;
     }
 
-    const result = statements.insertSubmission.run(roundId, clientId, nextAuthorId, nextModelId, now, now);
+    const result = statements.insertSubmission.run(
+      roundId,
+      clientId,
+      nextAuthorId,
+      nextAuthorGuess,
+      nextModelId,
+      now,
+      now,
+    );
 
     if (result.changes === 0) {
       return false;
     }
 
-    if (nextAuthorId) {
-      statements.incrementAuthorCount.run(roundId, nextAuthorId);
+    if (nextAuthorGuess) {
+      if (nextAuthorId) {
+        statements.incrementAuthorCount.run(roundId, nextAuthorId);
+      }
+
       statements.incrementRoundTotal.run(roundId);
     }
 
@@ -594,6 +626,39 @@ function getModelChoiceIds(round: RoundRow, post: PlayablePost): string[] {
   return seededShuffle([post.modelId, ...distractors], `${round.id}:model-order`);
 }
 
+function getAllowedAuthorIds(round: RoundRow, post: PlayablePost, language: LanguageKey): string[] {
+  const authors = getAuthorsForMode(round.category, post.category, language) as Author[];
+  return [...new Set([post.authorId, ...authors.map((author) => author.id)])].filter((authorId) => {
+    const author = AUTHORS_BY_ID.get(authorId) as Author | undefined;
+    return Boolean(author && getAuthorLanguages(author).includes(language));
+  });
+}
+
+function normalizeAuthorGuess(value: string): string {
+  return value.trim().replace(/^@/u, "").toLowerCase();
+}
+
+function resolveAuthorGuess(value: string, authorIds: Set<string>): string | undefined {
+  const normalized = normalizeAuthorGuess(value);
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  for (const authorId of authorIds) {
+    const author = AUTHORS_BY_ID.get(authorId) as Author | undefined;
+
+    if (
+      author &&
+      (normalizeAuthorGuess(author.handle) === normalized || normalizeAuthorGuess(author.name) === normalized)
+    ) {
+      return author.id;
+    }
+  }
+
+  return undefined;
+}
+
 function createRoundRecord(
   category: CategoryKey,
   startsAt: number,
@@ -704,17 +769,9 @@ function parseChoices(value: string): string[] {
   return JSON.parse(value) as string[];
 }
 
-function getStoredAuthorCounts(roundId: string, choiceIds: string[]): Map<string, number> {
-  const counts = new Map(choiceIds.map((choiceId) => [choiceId, 0]));
+function getAuthorCounts(roundId: string): Map<string, number> {
   const rows = statements.getAuthorCounts.all(roundId) as AuthorCountRow[];
-
-  for (const row of rows) {
-    if (counts.has(row.author_id)) {
-      counts.set(row.author_id, row.count);
-    }
-  }
-
-  return counts;
+  return new Map(rows.map((row) => [row.author_id, row.count]));
 }
 
 function getStoredAuthorTotal(roundId: string): number {
@@ -730,10 +787,9 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
     throw new Error(`Post not found for round ${round.id}: ${round.post_id}`);
   }
 
-  const authorChoiceIds = [...new Set([post.authorId, ...parseChoices(round.author_choice_ids)])]
-    .filter((authorId) => AUTHORS_BY_ID.has(authorId));
-  const modelChoiceIds = getModelChoiceIds(round, post);
   const language = roundLanguage(round);
+  const authorChoiceIds = getAllowedAuthorIds(round, post, language);
+  const modelChoiceIds = getModelChoiceIds(round, post);
   const submission = clientId
     ? (statements.getSubmission.get(round.id, clientId) as SubmissionRow | null)
     : null;
@@ -758,6 +814,11 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
     submission: submission
       ? {
           authorId: submission.author_choice_id,
+          authorGuess:
+            submission.author_guess_text ??
+            (submission.author_choice_id
+              ? ((AUTHORS_BY_ID.get(submission.author_choice_id) as Author | undefined)?.handle ?? null)
+              : null),
           modelId: submission.model_choice_id,
         }
       : null,
@@ -774,7 +835,16 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
   };
 
   if (status === "revealed") {
-    const authorCounts = getStoredAuthorCounts(round.id, authorChoiceIds);
+    const authorCounts = getAuthorCounts(round.id);
+    const resultAuthorIds = [
+      ...new Set([
+        post.authorId,
+        ...[...authorCounts.entries()]
+          .filter(([, count]) => count > 0)
+          .sort(([, leftCount], [, rightCount]) => rightCount - leftCount)
+          .map(([authorId]) => authorId),
+      ]),
+    ].filter((authorId) => authorChoiceIds.includes(authorId));
     const winnerCount = authorCounts.get(post.authorId) ?? 0;
 
     payload.answer = {
@@ -785,7 +855,7 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
       authorTotal,
       winnerCount,
       winnerPercentage: authorTotal ? Math.round((winnerCount / authorTotal) * 100) : 0,
-      authors: authorChoiceIds.map((authorId) => ({
+      authors: resultAuthorIds.map((authorId) => ({
         author: AUTHORS_BY_ID.get(authorId) as Author | undefined,
         count: authorCounts.get(authorId) ?? 0,
         percentage: authorTotal ? Math.round(((authorCounts.get(authorId) ?? 0) / authorTotal) * 100) : 0,
@@ -803,6 +873,32 @@ function ensureGeneratedPostsLanguageColumn(): void {
 
   if (!hasLanguage) {
     db.exec("ALTER TABLE generated_posts ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
+  }
+}
+
+function ensureSubmissionAuthorGuessColumn(): void {
+  const columns = db.prepare("PRAGMA table_info(submissions)").all() as TableInfoRow[];
+  const hasAuthorGuessText = columns.some((column) => column.name === "author_guess_text");
+
+  if (!hasAuthorGuessText) {
+    db.exec("ALTER TABLE submissions ADD COLUMN author_guess_text TEXT");
+  }
+
+  const rows = db
+    .prepare(`
+      SELECT round_id, client_id, author_choice_id
+      FROM submissions
+      WHERE author_guess_text IS NULL AND author_choice_id IS NOT NULL
+    `)
+    .all() as Array<{ round_id: string; client_id: string; author_choice_id: string }>;
+  const updateGuessText = db.prepare("UPDATE submissions SET author_guess_text = ? WHERE round_id = ? AND client_id = ?");
+
+  for (const row of rows) {
+    const author = AUTHORS_BY_ID.get(row.author_choice_id) as Author | undefined;
+
+    if (author) {
+      updateGuessText.run(author.handle, row.round_id, row.client_id);
+    }
   }
 }
 
@@ -1029,7 +1125,8 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       return notFound(response);
     }
 
-    const authorChoiceIds = new Set(parseChoices(round.author_choice_ids));
+    const language = roundLanguage(round);
+    const authorChoiceIds = new Set(getAllowedAuthorIds(round, post, language));
     const modelChoiceIds = new Set(getModelChoiceIds(round, post));
 
     if (!body.clientId || typeof body.clientId !== "string") {
@@ -1044,14 +1141,20 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       return json(response, 429, { error: "rate_limited" });
     }
 
-    const authorId = typeof body.authorId === "string" ? body.authorId : undefined;
+    const rawAuthorGuess = typeof body.authorGuess === "string" ? body.authorGuess.trim() : "";
+    const authorGuess = rawAuthorGuess || undefined;
+    const authorId = authorGuess
+      ? resolveAuthorGuess(authorGuess, authorChoiceIds)
+      : typeof body.authorId === "string"
+        ? body.authorId
+        : undefined;
     const modelId = typeof body.modelId === "string" ? body.modelId : undefined;
 
-    if (!authorId && !modelId) {
+    if (!authorGuess && !authorId && !modelId) {
       return badRequest(response, "Missing pick.");
     }
 
-    if (authorId && !authorChoiceIds.has(authorId)) {
+    if (!authorGuess && authorId && !authorChoiceIds.has(authorId)) {
       return badRequest(response, "Invalid author choice.");
     }
 
@@ -1060,7 +1163,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     }
 
     const now = Date.now();
-    const recorded = recordSubmission(roundId, body.clientId, authorId, modelId, now);
+    const recorded = recordSubmission(roundId, body.clientId, authorId, authorGuess, modelId, now);
 
     if (recorded) {
       markRoomDirty(roundLanguage(round));

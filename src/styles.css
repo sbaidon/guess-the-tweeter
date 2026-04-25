@@ -228,8 +228,8 @@ a {
 }
 
 .game-card h1 {
-  margin-top: 20px;
-  font-size: clamp(4.25rem, 20vw, 5.9rem);
+  margin-top: 16px;
+  font-size: clamp(2.7rem, 11vw, 3.8rem);
 }
 
 .game-card h1 span {

@@ -165,14 +165,17 @@ export component GameBoard({ category, language = "en" }) {
     : copy.categories.all;
   const phaseCopy = getPhaseCopy(round, now, language, copy);
   const selectedAuthorId = round?.submission?.authorId ?? null;
+  const selectedAuthorGuess = round?.submission?.authorGuess ?? "";
   const selectedModelId = round?.submission?.modelId ?? null;
-  const selectedAuthor =
-    round?.authorChoices.find((author) => author?.id === selectedAuthorId) ?? null;
   const selectedModel =
     round?.modelChoices?.find((model) => model.id === selectedModelId) ?? null;
   const matchedAuthor = round ? matchAuthorGuess(handleGuess, round.authorChoices) : null;
-  const matchedCurrentPick = Boolean(matchedAuthor && matchedAuthor.id === selectedAuthorId);
-  const hasAuthorPick = Boolean(selectedAuthorId);
+  const normalizedHandleGuess = normalizeGuess(handleGuess);
+  const normalizedSelectedAuthorGuess = normalizeGuess(selectedAuthorGuess);
+  const matchedCurrentPick = Boolean(
+    normalizedHandleGuess && normalizedHandleGuess === normalizedSelectedAuthorGuess,
+  );
+  const hasAuthorPick = Boolean(selectedAuthorGuess);
   const hasModelPick = Boolean(selectedModelId);
   const isOpen = round?.status === "open";
   const isRevealed = round?.status === "revealed";
@@ -199,8 +202,8 @@ export component GameBoard({ category, language = "en" }) {
       return;
     }
 
-    setHandleGuess(selectedAuthor?.handle ?? "");
-  }, [round?.id, selectedAuthorId]);
+    setHandleGuess(selectedAuthorGuess);
+  }, [round?.id, selectedAuthorGuess]);
 
   useEffect(() => {
     if (!round || round.status === "revealed") {
@@ -278,7 +281,7 @@ export component GameBoard({ category, language = "en" }) {
         ...payload,
       });
       setRound(nextRound);
-      if (payload.authorId) {
+      if (payload.authorGuess) {
         setHandleGuess("");
       }
       setError("");
@@ -380,27 +383,29 @@ export component GameBoard({ category, language = "en" }) {
             value={handleGuess}
             onInput={(event) => setHandleGuess(event.currentTarget.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && matchedAuthor && !matchedCurrentPick && !pending) {
-                submitPick({ authorId: matchedAuthor.id });
+              if (event.key === "Enter" && normalizedHandleGuess && !matchedCurrentPick && !pending) {
+                submitPick({ authorGuess: handleGuess.trim() });
               }
             }}
           />
           <div class="guess-help">
-            {handleGuess && !matchedAuthor
-              ? copy.game.noMatch
-              : matchedAuthor
+            {normalizedHandleGuess
+              ? matchedCurrentPick
+                ? copy.game.currentPick
+                : matchedAuthor
                 ? copy.game.matched(matchedAuthor.handle)
-                : copy.game.handleHelp}
+                : copy.game.freeformGuess(handleGuess.trim())
+              : copy.game.handleHelp}
           </div>
         </div>
 
         <button
           class="slip-action"
-          disabled={!matchedAuthor || matchedCurrentPick || pending}
+          disabled={!normalizedHandleGuess || matchedCurrentPick || pending}
           type="button"
-          onClick={() => submitPick({ authorId: matchedAuthor.id })}
+          onClick={() => submitPick({ authorGuess: handleGuess.trim() })}
         >
-          {matchedAuthor
+          {normalizedHandleGuess
             ? matchedCurrentPick
               ? copy.game.currentPick
               : hasAuthorPick
@@ -426,7 +431,7 @@ export component GameBoard({ category, language = "en" }) {
                   : copy.game.slipPlaced
                 : copy.game.roundLocked}
             </span>
-            <strong>{hasAuthorPick ? (selectedAuthor?.handle ?? copy.game.pickLocked) : copy.game.noMorePicks}</strong>
+            <strong>{hasAuthorPick ? selectedAuthorGuess : copy.game.noMorePicks}</strong>
             <span>
               {hasAuthorPick && isOpen
                 ? copy.game.canChangeUntil(formatClock(round.locksAt, language))
