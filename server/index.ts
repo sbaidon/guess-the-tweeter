@@ -297,12 +297,22 @@ const statements = {
     VALUES (?, ?, ?, NULL, ?, ?)
     ON CONFLICT(round_id, client_id) DO NOTHING
   `),
+  updateSubmission: db.prepare(`
+    UPDATE submissions
+    SET author_choice_id = ?, updated_at = ?
+    WHERE round_id = ? AND client_id = ?
+  `),
   getRoundTotal: db.prepare("SELECT author_total AS count FROM round_totals WHERE round_id = ?"),
   getAuthorCounts: db.prepare("SELECT author_id, count FROM round_author_counts WHERE round_id = ?"),
   incrementAuthorCount: db.prepare(`
     INSERT INTO round_author_counts (round_id, author_id, count)
     VALUES (?, ?, 1)
     ON CONFLICT(round_id, author_id) DO UPDATE SET count = count + 1
+  `),
+  decrementAuthorCount: db.prepare(`
+    UPDATE round_author_counts
+    SET count = MAX(count - 1, 0)
+    WHERE round_id = ? AND author_id = ?
   `),
   incrementRoundTotal: db.prepare(`
     INSERT INTO round_totals (round_id, author_total)
@@ -330,8 +340,24 @@ const recordSubmission = db.transaction(
   (roundId: string, clientId: string, authorId: string | null, now: number): boolean => {
     const existingSubmission = statements.getSubmission.get(roundId, clientId) as SubmissionRow | null;
 
-    if (existingSubmission?.author_choice_id || !authorId) {
+    if (!authorId) {
       return false;
+    }
+
+    if (existingSubmission?.author_choice_id === authorId) {
+      return false;
+    }
+
+    if (existingSubmission?.author_choice_id) {
+      const result = statements.updateSubmission.run(authorId, now, roundId, clientId);
+
+      if (result.changes === 0) {
+        return false;
+      }
+
+      statements.decrementAuthorCount.run(roundId, existingSubmission.author_choice_id);
+      statements.incrementAuthorCount.run(roundId, authorId);
+      return true;
     }
 
     const result = statements.insertSubmission.run(roundId, clientId, authorId, now, now);

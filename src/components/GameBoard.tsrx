@@ -165,7 +165,10 @@ export component GameBoard({ category, language = "en" }) {
     : copy.categories.all;
   const phaseCopy = getPhaseCopy(round, now, language, copy);
   const selectedAuthorId = round?.submission?.authorId ?? null;
+  const selectedAuthor =
+    round?.authorChoices.find((author) => author?.id === selectedAuthorId) ?? null;
   const matchedAuthor = round ? matchAuthorGuess(handleGuess, round.authorChoices) : null;
+  const matchedCurrentPick = Boolean(matchedAuthor && matchedAuthor.id === selectedAuthorId);
   const hasAuthorPick = Boolean(selectedAuthorId);
   const isOpen = round?.status === "open";
   const isRevealed = round?.status === "revealed";
@@ -184,6 +187,14 @@ export component GameBoard({ category, language = "en" }) {
 
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!round) {
+      return;
+    }
+
+    setHandleGuess(selectedAuthor?.handle ?? "");
+  }, [round?.id, selectedAuthorId]);
 
   useEffect(() => {
     if (!round || round.status === "revealed") {
@@ -346,7 +357,7 @@ export component GameBoard({ category, language = "en" }) {
 
       <div class="prompt-row">{copy.game.whoPosted}</div>
 
-      if (!hasAuthorPick && isOpen) {
+      if (isOpen) {
         <div class="guess-box">
           <label class="guess-label" htmlFor="handle-guess">
             {copy.game.typeHandle}
@@ -361,7 +372,7 @@ export component GameBoard({ category, language = "en" }) {
             value={handleGuess}
             onInput={(event) => setHandleGuess(event.currentTarget.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && matchedAuthor && !pending) {
+              if (event.key === "Enter" && matchedAuthor && !matchedCurrentPick && !pending) {
                 submitPick({ authorId: matchedAuthor.id });
               }
             }}
@@ -377,11 +388,17 @@ export component GameBoard({ category, language = "en" }) {
 
         <button
           class="slip-action"
-          disabled={!matchedAuthor || pending}
+          disabled={!matchedAuthor || matchedCurrentPick || pending}
           type="button"
           onClick={() => submitPick({ authorId: matchedAuthor.id })}
         >
-          {matchedAuthor ? copy.game.placeSlip : copy.game.enterHandle}
+          {matchedAuthor
+            ? matchedCurrentPick
+              ? copy.game.currentPick
+              : hasAuthorPick
+                ? copy.game.updateSlip
+                : copy.game.placeSlip
+            : copy.game.enterHandle}
         </button>
       }
 
@@ -394,9 +411,19 @@ export component GameBoard({ category, language = "en" }) {
             <strong>{round.answer.author.name}</strong>
             <span>{round.answer.author.signature}</span>
           } else {
-            <span class="notice__label">{hasAuthorPick ? copy.game.slipPlaced : copy.game.roundLocked}</span>
-            <strong>{hasAuthorPick ? copy.game.pickLocked : copy.game.noMorePicks}</strong>
-            <span>{copy.game.revealAt(formatClock(round.revealsAt, language))}</span>
+            <span class="notice__label">
+              {hasAuthorPick
+                ? isOpen
+                  ? copy.game.currentPick
+                  : copy.game.slipPlaced
+                : copy.game.roundLocked}
+            </span>
+            <strong>{hasAuthorPick ? (selectedAuthor?.handle ?? copy.game.pickLocked) : copy.game.noMorePicks}</strong>
+            <span>
+              {hasAuthorPick && isOpen
+                ? copy.game.canChangeUntil(formatClock(round.locksAt, language))
+                : copy.game.revealAt(formatClock(round.revealsAt, language))}
+            </span>
           }
         </div>
       }
