@@ -165,15 +165,21 @@ export component GameBoard({ category, language = "en" }) {
     : copy.categories.all;
   const phaseCopy = getPhaseCopy(round, now, language, copy);
   const selectedAuthorId = round?.submission?.authorId ?? null;
+  const selectedModelId = round?.submission?.modelId ?? null;
   const selectedAuthor =
     round?.authorChoices.find((author) => author?.id === selectedAuthorId) ?? null;
+  const selectedModel =
+    round?.modelChoices?.find((model) => model.id === selectedModelId) ?? null;
   const matchedAuthor = round ? matchAuthorGuess(handleGuess, round.authorChoices) : null;
   const matchedCurrentPick = Boolean(matchedAuthor && matchedAuthor.id === selectedAuthorId);
   const hasAuthorPick = Boolean(selectedAuthorId);
+  const hasModelPick = Boolean(selectedModelId);
   const isOpen = round?.status === "open";
   const isRevealed = round?.status === "revealed";
   const authorCorrect =
     isRevealed && selectedAuthorId && selectedAuthorId === round.answer.author.id;
+  const modelCorrect =
+    isRevealed && selectedModelId && selectedModelId === round.answer.model.id;
   const stampLabel = isRevealed
     ? authorCorrect
       ? copy.game.paidOut
@@ -272,7 +278,9 @@ export component GameBoard({ category, language = "en" }) {
         ...payload,
       });
       setRound(nextRound);
-      setHandleGuess("");
+      if (payload.authorId) {
+        setHandleGuess("");
+      }
       setError("");
     } catch (nextError) {
       setError(copy.errors.roundClosed);
@@ -426,6 +434,50 @@ export component GameBoard({ category, language = "en" }) {
             </span>
           }
         </div>
+      }
+
+      if (round.modelChoices?.length) {
+        <section class="bonus-card">
+          <div class="bonus-card__header">
+            <p class="eyebrow">{copy.game.modelBonus}</p>
+            <h2>{copy.game.modelBonusDetail}</h2>
+          </div>
+
+          if (isOpen) {
+            <div class="choices choices--compact">
+              for (const model of round.modelChoices) {
+                <button
+                  key={model.id}
+                  class="choice choice--bonus"
+                  data-state={selectedModelId === model.id ? "selected" : "idle"}
+                  disabled={pending || selectedModelId === model.id}
+                  type="button"
+                  onClick={() => submitPick({ modelId: model.id })}
+                >
+                  <span class="choice__main">
+                    <strong>{model.name}</strong>
+                    <span>{model.blurb}</span>
+                  </span>
+                  if (selectedModelId === model.id) {
+                    <span class="choice__badge">{copy.game.currentPick}</span>
+                  }
+                </button>
+              }
+            </div>
+          } else {
+            <div class={`notice ${isRevealed ? (modelCorrect ? "notice--good" : "notice--bad") : ""}`}>
+              if (isRevealed) {
+                <span class="notice__label">{copy.game.modelCorrect}</span>
+                <strong>{round.answer.model.name}</strong>
+                <span>{round.answer.model.blurb}</span>
+              } else {
+                <span class="notice__label">{hasModelPick ? copy.game.modelPick : copy.game.roundLocked}</span>
+                <strong>{hasModelPick ? (selectedModel?.name ?? copy.game.pickLocked) : copy.game.noMorePicks}</strong>
+                <span>{copy.game.revealAt(formatClock(round.revealsAt, language))}</span>
+              }
+            </div>
+          }
+        </section>
       }
 
       if (isRevealed) {

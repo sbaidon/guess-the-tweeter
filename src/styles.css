@@ -599,6 +599,22 @@ a {
   color: var(--red);
 }
 
+.choice--bonus[data-state="selected"]::after {
+  content: none;
+}
+
+.choice__badge {
+  margin-left: auto;
+  color: var(--red);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  text-align: right;
+  text-transform: uppercase;
+}
+
 .choice[data-state="correct"] {
   color: var(--red);
 }

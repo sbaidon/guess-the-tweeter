@@ -13,6 +13,8 @@ import {
   DEFAULT_LANGUAGE,
   LANGUAGE_ORDER,
   LANGUAGES_BY_ID,
+  MODELS,
+  MODELS_BY_ID,
   POSTS_BY_ID,
   getAuthorLanguages,
   getAuthorsForMode,
@@ -31,6 +33,12 @@ type Author = {
   handle: string;
   bio: string;
   signature: string;
+};
+
+type Model = {
+  id: string;
+  name: string;
+  blurb: string;
 };
 
 type PlayablePost = {
@@ -128,7 +136,8 @@ type PublicRoundPayload = {
     text: string;
   };
   authorChoices: Array<Author | undefined>;
-  submission: { authorId: string | null } | null;
+  modelChoices: Model[];
+  submission: { authorId: string | null; modelId: string | null } | null;
   totals: {
     submissions: number;
     connected: number;
@@ -141,6 +150,7 @@ type PublicRoundPayload = {
   };
   answer?: {
     author: Author | undefined;
+    model: Model;
   };
   results?: {
     authorTotal: number;
@@ -158,6 +168,7 @@ type PublicRoundPayload = {
 type SubmissionBody = {
   clientId?: unknown;
   authorId?: unknown;
+  modelId?: unknown;
 };
 
 type ChannelSocket = WebSocket & {
@@ -192,6 +203,53 @@ const maxJsonBodyBytes = Number(process.env.MAX_JSON_BODY_BYTES ?? 8_192);
 const publicCategory: CategoryKey = "all";
 const defaultLanguage: LanguageKey = DEFAULT_LANGUAGE;
 const playableCategories = new Set(CATEGORY_ORDER.filter((category) => category !== "all"));
+const openRouterModelOptions: Model[] = [
+  {
+    id: "openai/gpt-5.4-mini-20260317",
+    name: "GPT-5.4 Mini",
+    blurb: "Fast, polished, and usually very obedient about structure.",
+  },
+  {
+    id: "deepseek/deepseek-v3.2-20251201",
+    name: "DeepSeek V3.2",
+    blurb: "Direct, economical, and fond of crisp argument shapes.",
+  },
+  {
+    id: "x-ai/grok-4.1-fast",
+    name: "Grok 4.1 Fast",
+    blurb: "Punchy, online, and more willing to swing at the bit.",
+  },
+  {
+    id: "qwen/qwen3.6-plus-04-02",
+    name: "Qwen 3.6 Plus",
+    blurb: "Steady multilingual output with a practical, slightly formal edge.",
+  },
+  {
+    id: "google/gemini-3-flash-preview-20251217",
+    name: "Gemini 3 Flash",
+    blurb: "Quick, fluent, and happy to make the framing extra tidy.",
+  },
+  {
+    id: "anthropic/claude-4.5-haiku-20251001",
+    name: "Claude 4.5 Haiku",
+    blurb: "Careful cadence, clean transitions, and restrained punchlines.",
+  },
+  {
+    id: "mistralai/mistral-large-2512",
+    name: "Mistral Large",
+    blurb: "European polish with a tendency toward declarative confidence.",
+  },
+  {
+    id: "meta-llama/llama-4-maverick-17b-128e-instruct",
+    name: "Llama 4 Maverick",
+    blurb: "Open-weight swagger with roomy phrasing and broad confidence.",
+  },
+];
+const modelOptionsById = new Map<string, Model>([
+  ...(MODELS as Model[]).map((model) => [model.id, model] as const),
+  ...openRouterModelOptions.map((model) => [model.id, model] as const),
+]);
+const modelChoicePool = [...new Set([...(MODELS as Model[]), ...openRouterModelOptions].map((model) => model.id))];
 const roundLengthMs = 60 * 60 * 1000;
 const lockOffsetMs = 50 * 60 * 1000;
 const revealOffsetMs = 55 * 60 * 1000;
@@ -294,12 +352,12 @@ const statements = {
   getSubmission: db.prepare("SELECT * FROM submissions WHERE round_id = ? AND client_id = ?"),
   insertSubmission: db.prepare(`
     INSERT INTO submissions (round_id, client_id, author_choice_id, model_choice_id, created_at, updated_at)
-    VALUES (?, ?, ?, NULL, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(round_id, client_id) DO NOTHING
   `),
   updateSubmission: db.prepare(`
     UPDATE submissions
-    SET author_choice_id = ?, updated_at = ?
+    SET author_choice_id = ?, model_choice_id = ?, updated_at = ?
     WHERE round_id = ? AND client_id = ?
   `),
   getRoundTotal: db.prepare("SELECT author_total AS count FROM round_totals WHERE round_id = ?"),
@@ -337,37 +395,54 @@ const statements = {
 };
 
 const recordSubmission = db.transaction(
-  (roundId: string, clientId: string, authorId: string | null, now: number): boolean => {
+  (
+    roundId: string,
+    clientId: string,
+    authorId: string | undefined,
+    modelId: string | undefined,
+    now: number,
+  ): boolean => {
     const existingSubmission = statements.getSubmission.get(roundId, clientId) as SubmissionRow | null;
+    const nextAuthorId = authorId ?? existingSubmission?.author_choice_id ?? null;
+    const nextModelId = modelId ?? existingSubmission?.model_choice_id ?? null;
+    const authorChanged = Boolean(authorId && authorId !== existingSubmission?.author_choice_id);
+    const modelChanged = Boolean(modelId && modelId !== existingSubmission?.model_choice_id);
 
-    if (!authorId) {
+    if (!authorChanged && !modelChanged) {
       return false;
     }
 
-    if (existingSubmission?.author_choice_id === authorId) {
-      return false;
-    }
-
-    if (existingSubmission?.author_choice_id) {
-      const result = statements.updateSubmission.run(authorId, now, roundId, clientId);
+    if (existingSubmission) {
+      const result = statements.updateSubmission.run(nextAuthorId, nextModelId, now, roundId, clientId);
 
       if (result.changes === 0) {
         return false;
       }
 
-      statements.decrementAuthorCount.run(roundId, existingSubmission.author_choice_id);
-      statements.incrementAuthorCount.run(roundId, authorId);
+      if (authorChanged) {
+        if (existingSubmission.author_choice_id) {
+          statements.decrementAuthorCount.run(roundId, existingSubmission.author_choice_id);
+        } else {
+          statements.incrementRoundTotal.run(roundId);
+        }
+
+        statements.incrementAuthorCount.run(roundId, authorId);
+      }
+
       return true;
     }
 
-    const result = statements.insertSubmission.run(roundId, clientId, authorId, now, now);
+    const result = statements.insertSubmission.run(roundId, clientId, nextAuthorId, nextModelId, now, now);
 
     if (result.changes === 0) {
       return false;
     }
 
-    statements.incrementAuthorCount.run(roundId, authorId);
-    statements.incrementRoundTotal.run(roundId);
+    if (nextAuthorId) {
+      statements.incrementAuthorCount.run(roundId, nextAuthorId);
+      statements.incrementRoundTotal.run(roundId);
+    }
+
     return true;
   },
 );
@@ -472,6 +547,51 @@ function getPlayablePost(postId: string): PlayablePost | null {
   }
 
   return generatedRowToPost(generatedPost);
+}
+
+function getModelOption(modelId: string): Model {
+  const knownModel = MODELS_BY_ID.get(modelId) as Model | undefined;
+
+  if (knownModel) {
+    return knownModel;
+  }
+
+  const knownOpenRouterModel = modelOptionsById.get(modelId);
+
+  if (knownOpenRouterModel) {
+    return knownOpenRouterModel;
+  }
+
+  return {
+    id: modelId,
+    name: formatModelName(modelId),
+    blurb: "A generated-content model recorded with this post.",
+  };
+}
+
+function formatModelName(modelId: string): string {
+  const [, modelName = modelId] = modelId.split("/");
+  return modelName
+    .replace(/-\d{8}$/u, "")
+    .split("-")
+    .filter(Boolean)
+    .map((part) => (/^\d/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join(" ");
+}
+
+function getModelChoiceIds(round: RoundRow, post: PlayablePost): string[] {
+  const storedChoiceIds = parseChoices(round.model_choice_ids);
+
+  if (storedChoiceIds.length) {
+    return [...new Set([post.modelId, ...storedChoiceIds])];
+  }
+
+  const distractors = seededShuffle(
+    modelChoicePool.filter((modelId) => modelId !== post.modelId),
+    `${round.id}:models`,
+  ).slice(0, 3);
+
+  return seededShuffle([post.modelId, ...distractors], `${round.id}:model-order`);
 }
 
 function createRoundRecord(
@@ -612,6 +732,7 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
 
   const authorChoiceIds = [...new Set([post.authorId, ...parseChoices(round.author_choice_ids)])]
     .filter((authorId) => AUTHORS_BY_ID.has(authorId));
+  const modelChoiceIds = getModelChoiceIds(round, post);
   const language = roundLanguage(round);
   const submission = clientId
     ? (statements.getSubmission.get(round.id, clientId) as SubmissionRow | null)
@@ -633,9 +754,11 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
       text: post.text,
     },
     authorChoices: authorChoiceIds.map((authorId) => AUTHORS_BY_ID.get(authorId) as Author | undefined),
+    modelChoices: modelChoiceIds.map(getModelOption),
     submission: submission
       ? {
           authorId: submission.author_choice_id,
+          modelId: submission.model_choice_id,
         }
       : null,
     totals: {
@@ -656,6 +779,7 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
 
     payload.answer = {
       author: AUTHORS_BY_ID.get(post.authorId) as Author | undefined,
+      model: getModelOption(post.modelId),
     };
     payload.results = {
       authorTotal,
@@ -899,7 +1023,14 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     }
 
     const body = await readJson(request);
+    const post = getPlayablePost(round.post_id);
+
+    if (!post) {
+      return notFound(response);
+    }
+
     const authorChoiceIds = new Set(parseChoices(round.author_choice_ids));
+    const modelChoiceIds = new Set(getModelChoiceIds(round, post));
 
     if (!body.clientId || typeof body.clientId !== "string") {
       return badRequest(response, "Missing clientId.");
@@ -913,14 +1044,23 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       return json(response, 429, { error: "rate_limited" });
     }
 
-    const authorId = typeof body.authorId === "string" ? body.authorId : null;
+    const authorId = typeof body.authorId === "string" ? body.authorId : undefined;
+    const modelId = typeof body.modelId === "string" ? body.modelId : undefined;
+
+    if (!authorId && !modelId) {
+      return badRequest(response, "Missing pick.");
+    }
 
     if (authorId && !authorChoiceIds.has(authorId)) {
       return badRequest(response, "Invalid author choice.");
     }
 
+    if (modelId && !modelChoiceIds.has(modelId)) {
+      return badRequest(response, "Invalid model choice.");
+    }
+
     const now = Date.now();
-    const recorded = recordSubmission(roundId, body.clientId, authorId, now);
+    const recorded = recordSubmission(roundId, body.clientId, authorId, modelId, now);
 
     if (recorded) {
       markRoomDirty(roundLanguage(round));
