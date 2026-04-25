@@ -227,6 +227,75 @@ a {
   animation: pulse 1.4s ease-in-out infinite;
 }
 
+.balance-pill {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.stake-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.stake-row__label {
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.stake-chip {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.stake-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stake-chip[data-state="selected"] {
+  border-color: var(--red);
+  background: var(--red);
+  color: var(--paper);
+}
+
+.payout-line {
+  display: block;
+  margin-top: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.payout-line[data-tone="win"] {
+  color: var(--red);
+}
+
+.payout-line[data-tone="lose"] {
+  color: var(--muted);
+}
+
+.payout-line[data-tone="push"] {
+  color: var(--ink-soft);
+}
+
 .game-card h1 {
   margin-top: 16px;
   font-size: clamp(2.7rem, 11vw, 3.8rem);

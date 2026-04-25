@@ -82,8 +82,18 @@ type SubmissionRow = {
   author_choice_id: string | null;
   author_guess_text: string | null;
   model_choice_id: string | null;
+  stake: number;
+  payout: number;
+  settled_at: number | null;
   created_at: number;
   updated_at: number;
+};
+
+type PlayerRow = {
+  identity: string;
+  points: number;
+  last_topup_at: number;
+  created_at: number;
 };
 
 type GeneratedPostRow = {
@@ -138,10 +148,20 @@ type PublicRoundPayload = {
   };
   authorChoices: Array<Author | undefined>;
   modelChoices: Model[];
-  submission: { authorId: string | null; authorGuess: string | null; modelId: string | null } | null;
+  submission: {
+    authorId: string | null;
+    authorGuess: string | null;
+    modelId: string | null;
+    stake: number;
+    payout: number;
+    settled: boolean;
+  } | null;
   totals: {
     submissions: number;
     connected: number;
+  };
+  player?: {
+    points: number;
   };
   contest: {
     startsAt: string;
@@ -171,6 +191,7 @@ type SubmissionBody = {
   authorId?: unknown;
   authorGuess?: unknown;
   modelId?: unknown;
+  stake?: unknown;
 };
 
 type ChannelSocket = WebSocket & {
@@ -323,10 +344,18 @@ db.exec(`
     author_total INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS players (
+    identity TEXT PRIMARY KEY,
+    points INTEGER NOT NULL DEFAULT 100,
+    last_topup_at INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 ensureGeneratedPostsLanguageColumn();
 ensureSubmissionAuthorGuessColumn();
+ensureSubmissionStakeColumns();
 ensureSubmissionCounters();
 
 const statements = {
@@ -396,6 +425,25 @@ const statements = {
   deleteRound: db.prepare("DELETE FROM rounds WHERE id = ?"),
   getGeneratedPost: db.prepare("SELECT * FROM generated_posts WHERE id = ? AND status = 'approved'"),
   getGeneratedPosts: db.prepare("SELECT * FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC"),
+  getPlayer: db.prepare("SELECT * FROM players WHERE identity = ?"),
+  insertPlayer: db.prepare(`
+    INSERT INTO players (identity, points, last_topup_at, created_at)
+    VALUES (?, ?, 0, ?)
+    ON CONFLICT(identity) DO NOTHING
+  `),
+  setPlayerPoints: db.prepare(
+    "UPDATE players SET points = ?, last_topup_at = ? WHERE identity = ?",
+  ),
+  setSubmissionStake: db.prepare(
+    "UPDATE submissions SET stake = ? WHERE round_id = ? AND client_id = ?",
+  ),
+  getRoundSubmissions: db.prepare("SELECT * FROM submissions WHERE round_id = ?"),
+  setSubmissionPayout: db.prepare(
+    "UPDATE submissions SET payout = ?, settled_at = ? WHERE round_id = ? AND client_id = ?",
+  ),
+  sumOpenStakes: db.prepare(
+    "SELECT COALESCE(SUM(stake), 0) AS total FROM submissions WHERE client_id = ? AND settled_at IS NULL",
+  ),
 };
 
 const recordSubmission = db.transaction(
@@ -405,6 +453,7 @@ const recordSubmission = db.transaction(
     authorId: string | undefined,
     authorGuess: string | undefined,
     modelId: string | undefined,
+    stake: number | undefined,
     now: number,
   ): boolean => {
     const existingSubmission = statements.getSubmission.get(roundId, clientId) as SubmissionRow | null;
@@ -417,23 +466,30 @@ const recordSubmission = db.transaction(
           nextAuthorId !== existingSubmission?.author_choice_id),
     );
     const modelChanged = Boolean(modelId && modelId !== existingSubmission?.model_choice_id);
+    const stakeChanged = stake !== undefined && stake !== (existingSubmission?.stake ?? 0);
 
-    if (!authorChanged && !modelChanged) {
+    if (!authorChanged && !modelChanged && !stakeChanged) {
       return false;
     }
 
     if (existingSubmission) {
-      const result = statements.updateSubmission.run(
-        nextAuthorId,
-        nextAuthorGuess,
-        nextModelId,
-        now,
-        roundId,
-        clientId,
-      );
+      if (authorChanged || modelChanged) {
+        const result = statements.updateSubmission.run(
+          nextAuthorId,
+          nextAuthorGuess,
+          nextModelId,
+          now,
+          roundId,
+          clientId,
+        );
 
-      if (result.changes === 0) {
-        return false;
+        if (result.changes === 0) {
+          return false;
+        }
+      }
+
+      if (stakeChanged) {
+        statements.setSubmissionStake.run(stake as number, roundId, clientId);
       }
 
       if (authorChanged) {
@@ -465,6 +521,10 @@ const recordSubmission = db.transaction(
 
     if (result.changes === 0) {
       return false;
+    }
+
+    if (stake !== undefined && stake > 0) {
+      statements.setSubmissionStake.run(stake, roundId, clientId);
     }
 
     if (nextAuthorGuess) {
@@ -787,6 +847,10 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
     throw new Error(`Post not found for round ${round.id}: ${round.post_id}`);
   }
 
+  if (status === "revealed") {
+    settleRound(round.id);
+  }
+
   const language = roundLanguage(round);
   const authorChoiceIds = getAllowedAuthorIds(round, post, language);
   const modelChoiceIds = getModelChoiceIds(round, post);
@@ -820,6 +884,9 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
               ? ((AUTHORS_BY_ID.get(submission.author_choice_id) as Author | undefined)?.handle ?? null)
               : null),
           modelId: submission.model_choice_id,
+          stake: submission.stake ?? 0,
+          payout: submission.payout ?? 0,
+          settled: submission.settled_at !== null && submission.settled_at !== undefined,
         }
       : null,
     totals: {
@@ -833,6 +900,11 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
       totalRounds: Math.max(1, Math.ceil((contest.endsAt - contest.startsAt) / roundLengthMs)),
     },
   };
+
+  if (clientId) {
+    const player = ensurePlayer(clientId);
+    payload.player = { points: player.points };
+  }
 
   if (status === "revealed") {
     const authorCounts = getAuthorCounts(round.id);
@@ -873,6 +945,84 @@ function ensureGeneratedPostsLanguageColumn(): void {
 
   if (!hasLanguage) {
     db.exec("ALTER TABLE generated_posts ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
+  }
+}
+
+const STARTING_POINTS = 100;
+const TOPUP_AMOUNT = 25;
+
+function ensurePlayer(clientId: string): PlayerRow {
+  const identity = `uuid:${clientId}`;
+  const existing = statements.getPlayer.get(identity) as PlayerRow | null;
+  if (existing) {
+    if (existing.points <= 0) {
+      const now = Date.now();
+      statements.setPlayerPoints.run(TOPUP_AMOUNT, now, identity);
+      return { ...existing, points: TOPUP_AMOUNT, last_topup_at: now };
+    }
+    return existing;
+  }
+  const now = Date.now();
+  statements.insertPlayer.run(identity, STARTING_POINTS, now);
+  return statements.getPlayer.get(identity) as PlayerRow;
+}
+
+function computePayout(stake: number, authorCorrect: boolean, modelCorrect: boolean, freeformBonus: boolean): number {
+  if (stake <= 0) {
+    return 0;
+  }
+  if (authorCorrect && modelCorrect) {
+    return stake + (freeformBonus ? Math.floor(stake / 2) : 0);
+  }
+  if (authorCorrect) {
+    return Math.floor(stake / 4) + (freeformBonus ? Math.floor(stake / 2) : 0);
+  }
+  if (modelCorrect) {
+    return Math.floor(stake / 4);
+  }
+  return -stake;
+}
+
+function settleRound(roundId: string): void {
+  const round = statements.getRound.get(roundId) as RoundRow | null;
+  if (!round) return;
+  const post = getPlayablePost(round.post_id);
+  if (!post) return;
+  const language = roundLanguage(round);
+  const correctAuthor = AUTHORS_BY_ID.get(post.authorId) as Author | undefined;
+  const submissions = statements.getRoundSubmissions.all(roundId) as SubmissionRow[];
+
+  for (const submission of submissions) {
+    if (submission.settled_at) continue;
+    const authorCorrect = submission.author_choice_id === post.authorId;
+    const modelCorrect = submission.model_choice_id === post.modelId;
+    const freeformBonus = Boolean(
+      authorCorrect &&
+        submission.author_guess_text &&
+        correctAuthor &&
+        submission.author_guess_text.replace(/^@/, "").trim().toLowerCase() ===
+          correctAuthor.handle.replace(/^@/, "").trim().toLowerCase(),
+    );
+    const payout = computePayout(submission.stake ?? 0, authorCorrect, modelCorrect, freeformBonus);
+    const player = ensurePlayer(submission.client_id);
+    const nextPoints = Math.max(0, player.points + payout);
+    statements.setPlayerPoints.run(nextPoints, player.last_topup_at, `uuid:${submission.client_id}`);
+    statements.setSubmissionPayout.run(payout, Date.now(), roundId, submission.client_id);
+  }
+}
+
+function ensureSubmissionStakeColumns(): void {
+  const columns = db.prepare("PRAGMA table_info(submissions)").all() as TableInfoRow[];
+  const names = new Set(columns.map((column) => column.name));
+
+  if (!names.has("stake")) {
+    db.exec("ALTER TABLE submissions ADD COLUMN stake INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!names.has("settled_at")) {
+    db.exec("ALTER TABLE submissions ADD COLUMN settled_at INTEGER");
+  }
+  if (!names.has("payout")) {
+    db.exec("ALTER TABLE submissions ADD COLUMN payout INTEGER NOT NULL DEFAULT 0");
   }
 }
 
@@ -1153,8 +1303,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
         ? body.authorId
         : undefined;
     const modelId = typeof body.modelId === "string" ? body.modelId : undefined;
+    const stakeProvided = typeof body.stake === "number" && Number.isFinite(body.stake);
+    const stake = stakeProvided ? Math.max(0, Math.floor(body.stake as number)) : undefined;
 
-    if (!authorGuess && !authorId && !modelId) {
+    if (!authorGuess && !authorId && !modelId && stake === undefined) {
       return badRequest(response, "Missing pick.");
     }
 
@@ -1166,8 +1318,20 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       return badRequest(response, "Invalid model choice.");
     }
 
+    if (stake !== undefined) {
+      const player = ensurePlayer(body.clientId);
+      const existingStake =
+        (statements.getSubmission.get(roundId, body.clientId) as SubmissionRow | null)?.stake ?? 0;
+      const otherOpenStakes =
+        ((statements.sumOpenStakes.get(body.clientId) as { total: number } | undefined)?.total ?? 0) -
+        existingStake;
+      if (stake + otherOpenStakes > player.points) {
+        return badRequest(response, "Stake exceeds balance.");
+      }
+    }
+
     const now = Date.now();
-    const recorded = recordSubmission(roundId, body.clientId, authorId, authorGuess, modelId, now);
+    const recorded = recordSubmission(roundId, body.clientId, authorId, authorGuess, modelId, stake, now);
 
     if (recorded) {
       markRoomDirty(roundLanguage(round));
@@ -1191,6 +1355,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     }
 
     statements.setRoundStatus.run("revealed", roundId);
+    settleRound(roundId);
     markRoomDirty(roundLanguage(round));
     logInfo("admin_action", { action: "reveal", roundId, ip: getClientIp(request) });
     return json(response, 200, publicRound(statements.getRound.get(roundId) as RoundRow));

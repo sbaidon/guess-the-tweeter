@@ -151,6 +151,13 @@ component ResultList({ items, copy }) {
   </div>
 }
 
+const STAKE_CHIPS = [0, 10, 25];
+
+function clampStake(value, balance) {
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.min(Math.floor(value), Math.max(0, balance));
+}
+
 export component GameBoard({ category, language = "en" }) {
   const [clientId] = useState(getClientId);
   const [round, setRound] = useState(null);
@@ -158,6 +165,7 @@ export component GameBoard({ category, language = "en" }) {
   const [pending, setPending] = useState(false);
   const [handleGuess, setHandleGuess] = useState("");
   const [now, setNow] = useState(Date.now());
+  const [draftStake, setDraftStake] = useState(0);
   const copy = getCopy(language);
   const postMeta = round ? CATEGORY_META[round.post.category] : CATEGORY_META.all;
   const categoryName = round
@@ -179,6 +187,11 @@ export component GameBoard({ category, language = "en" }) {
   const hasModelPick = Boolean(selectedModelId);
   const isOpen = round?.status === "open";
   const isRevealed = round?.status === "revealed";
+  const balance = round?.player?.points ?? 0;
+  const placedStake = round?.submission?.stake ?? 0;
+  const payout = round?.submission?.payout ?? 0;
+  const settled = round?.submission?.settled ?? false;
+  const effectiveStake = isOpen ? draftStake : placedStake;
   const authorCorrect =
     isRevealed && selectedAuthorId && selectedAuthorId === round.answer.author.id;
   const modelCorrect =
@@ -204,6 +217,11 @@ export component GameBoard({ category, language = "en" }) {
 
     setHandleGuess(selectedAuthorGuess);
   }, [round?.id, selectedAuthorGuess]);
+
+  useEffect(() => {
+    if (!round) return;
+    setDraftStake(clampStake(round.submission?.stake ?? 0, balance + (round.submission?.stake ?? 0)));
+  }, [round?.id, round?.submission?.stake, balance]);
 
   useEffect(() => {
     if (!round || round.status === "revealed") {
@@ -276,10 +294,11 @@ export component GameBoard({ category, language = "en" }) {
     setPending(true);
 
     try {
-      const nextRound = await submitRoundPick(round.id, {
-        clientId,
-        ...payload,
-      });
+      const body = { clientId, ...payload };
+      if (!("stake" in body)) {
+        body.stake = draftStake;
+      }
+      const nextRound = await submitRoundPick(round.id, body);
       setRound(nextRound);
       if (payload.authorGuess) {
         setHandleGuess("");
@@ -289,6 +308,15 @@ export component GameBoard({ category, language = "en" }) {
       setError(copy.errors.roundClosed);
     } finally {
       setPending(false);
+    }
+  }
+
+  function adjustStake(value) {
+    const maxAvailable = balance + placedStake;
+    const next = clampStake(value, maxAvailable);
+    setDraftStake(next);
+    if (round?.submission && next !== placedStake) {
+      submitPick({ stake: next });
     }
   }
 
@@ -305,6 +333,9 @@ export component GameBoard({ category, language = "en" }) {
           <span class="live-dot" />
           {copy.game.live}
         </span>
+        if (round?.player) {
+          <span class="balance-pill" aria-label="balance">{`BAL ${balance}`}</span>
+        }
         <span>{round ? getStatusLabel(round, language, copy) : copy.game.loading}</span>
       </div>
 
@@ -399,6 +430,33 @@ export component GameBoard({ category, language = "en" }) {
           </div>
         </div>
 
+        if (round?.player) {
+          <div class="stake-row" role="radiogroup" aria-label="bet">
+            <span class="stake-row__label">{"BET"}</span>
+            for (const value of STAKE_CHIPS) {
+              <button
+                key={String(value)}
+                class="stake-chip"
+                data-state={effectiveStake === value ? "selected" : "idle"}
+                disabled={pending || (value > 0 && value > balance + placedStake)}
+                type="button"
+                onClick={() => adjustStake(value)}
+              >
+                {value === 0 ? "PASS" : value}
+              </button>
+            }
+            <button
+              class="stake-chip"
+              data-state={effectiveStake === balance + placedStake && effectiveStake > 0 ? "selected" : "idle"}
+              disabled={pending || balance + placedStake <= 0}
+              type="button"
+              onClick={() => adjustStake(balance + placedStake)}
+            >
+              {"MAX"}
+            </button>
+          </div>
+        }
+
         <button
           class="slip-action"
           disabled={!normalizedHandleGuess || matchedCurrentPick || pending}
@@ -423,6 +481,12 @@ export component GameBoard({ category, language = "en" }) {
             <span class="notice__label">{authorCorrect ? copy.game.youWereRight : copy.game.answerWas}</span>
             <strong>{round.answer.author.name}</strong>
             <span>{round.answer.author.signature}</span>
+            if (settled && (placedStake > 0 || payout !== 0)) {
+              <span class="payout-line" data-tone={payout > 0 ? "win" : payout < 0 ? "lose" : "push"}>
+                {payout > 0 ? `+${payout} pts` : payout < 0 ? `${payout} pts` : "0 pts"}
+                {placedStake > 0 ? ` · staked ${placedStake}` : ""}
+              </span>
+            }
           } else {
             <span class="notice__label">
               {hasAuthorPick
@@ -437,6 +501,9 @@ export component GameBoard({ category, language = "en" }) {
                 ? copy.game.canChangeUntil(formatClock(round.locksAt, language))
                 : copy.game.revealAt(formatClock(round.revealsAt, language))}
             </span>
+            if (placedStake > 0) {
+              <span class="payout-line" data-tone="push">{`Staked ${placedStake}`}</span>
+            }
           }
         </div>
       }
