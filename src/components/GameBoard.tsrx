@@ -172,9 +172,12 @@ export component GameBoard({ category, language = "en" }) {
     ? copy.categories[round.post.category] ?? postMeta.name
     : copy.categories.all;
   const phaseCopy = getPhaseCopy(round, now, language, copy);
-  const selectedAuthorId = round?.submission?.authorId ?? null;
-  const selectedAuthorGuess = round?.submission?.authorGuess ?? "";
-  const selectedModelId = round?.submission?.modelId ?? null;
+  const player = round?.player ?? null;
+  const submission = round?.submission ?? null;
+  const placedAuthor = submission?.author ?? null;
+  const selectedAuthorGuess = placedAuthor ? placedAuthor.handle : "";
+  const selectedAuthorId = placedAuthor ? placedAuthor.authorId : null;
+  const selectedModelId = submission?.modelId ?? null;
   const selectedModel =
     round?.modelChoices?.find((model) => model.id === selectedModelId) ?? null;
   const matchedAuthor = round ? matchAuthorGuess(handleGuess, round.authorChoices) : null;
@@ -183,12 +186,10 @@ export component GameBoard({ category, language = "en" }) {
   const matchedCurrentPick = Boolean(
     normalizedHandleGuess && normalizedHandleGuess === normalizedSelectedAuthorGuess,
   );
-  const hasAuthorPick = Boolean(selectedAuthorGuess);
+  const hasAuthorPick = Boolean(placedAuthor);
   const hasModelPick = Boolean(selectedModelId);
   const isOpen = round?.status === "open";
   const isRevealed = round?.status === "revealed";
-  const player = round?.player ?? null;
-  const submission = round?.submission ?? null;
   const placedStake = submission ? submission.stake : 0;
   const maxStake = player ? player.points + placedStake : 0;
   const authorCorrect =
@@ -467,9 +468,9 @@ export component GameBoard({ category, language = "en" }) {
             <span class="notice__label">{authorCorrect ? copy.game.youWereRight : copy.game.answerWas}</span>
             <strong>{round.answer.author.name}</strong>
             <span>{round.answer.author.signature}</span>
-            if (submission && submission.settled && (placedStake > 0 || submission.payout !== 0)) {
-              <span class="payout-line" data-tone={submission.payout > 0 ? "win" : submission.payout < 0 ? "lose" : "push"}>
-                {formatPayout(submission.payout)}
+            if (submission && submission.outcome.settled && (placedStake > 0 || submission.outcome.payout !== 0)) {
+              <span class="payout-line" data-tone={submission.outcome.payout > 0 ? "win" : submission.outcome.payout < 0 ? "lose" : "push"}>
+                {formatPayout(submission.outcome.payout)}
                 {placedStake > 0 ? ` · staked ${placedStake}` : ""}
               </span>
             }

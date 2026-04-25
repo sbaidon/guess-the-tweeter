@@ -146,6 +146,16 @@ type RoundReveal = {
   };
 };
 
+type AuthorPick = { handle: string; authorId: string | null };
+type Outcome = { settled: true; payout: number } | { settled: false };
+
+type Submission = {
+  author: AuthorPick | null;
+  modelId: string | null;
+  stake: number;
+  outcome: Outcome;
+};
+
 type RoundBase = {
   id: string;
   category: CategoryKey;
@@ -162,14 +172,7 @@ type RoundBase = {
   };
   authorChoices: Author[];
   modelChoices: Model[];
-  submission: {
-    authorId: string | null;
-    authorGuess: string | null;
-    modelId: string | null;
-    stake: number;
-    payout: number;
-    settled: boolean;
-  } | null;
+  submission: Submission | null;
   totals: {
     submissions: number;
     connected: number;
@@ -847,6 +850,36 @@ function lookupAuthor(authorId: string): Author {
   return author as Author;
 }
 
+function buildAuthorPick(submission: SubmissionRow): AuthorPick | null {
+  if (submission.author_choice_id) {
+    const handle = submission.author_guess_text ?? lookupAuthor(submission.author_choice_id).handle;
+    return { handle, authorId: submission.author_choice_id };
+  }
+  if (submission.author_guess_text) {
+    return { handle: submission.author_guess_text, authorId: null };
+  }
+  return null;
+}
+
+function buildOutcome(submission: SubmissionRow): Outcome {
+  if (submission.settled_at === null) return { settled: false };
+  return { settled: true, payout: submission.payout };
+}
+
+function rankRevealAuthors(
+  correctId: string,
+  authorCounts: Map<string, number>,
+  choiceIds: string[],
+): string[] {
+  const choiceSet = new Set(choiceIds);
+  const votedByPopularity = [...authorCounts.entries()]
+    .filter(([, count]) => count > 0)
+    .sort(([, leftCount], [, rightCount]) => rightCount - leftCount)
+    .map(([authorId]) => authorId);
+  const ordered = [...new Set([correctId, ...votedByPopularity])];
+  return ordered.filter((authorId) => choiceSet.has(authorId));
+}
+
 function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayload {
   const status = computeStatus(round);
   const post = getPlayablePost(round.post_id);
@@ -885,14 +918,10 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
     modelChoices: modelChoiceIds.map(getModelOption),
     submission: submission
       ? {
-          authorId: submission.author_choice_id,
-          authorGuess:
-            submission.author_guess_text ??
-            (submission.author_choice_id ? lookupAuthor(submission.author_choice_id).handle : null),
+          author: buildAuthorPick(submission),
           modelId: submission.model_choice_id,
           stake: submission.stake,
-          payout: submission.payout,
-          settled: submission.settled_at !== null,
+          outcome: buildOutcome(submission),
         }
       : null,
     totals: {
@@ -916,15 +945,7 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
   }
 
   const authorCounts = getAuthorCounts(round.id);
-  const resultAuthorIds = [
-    ...new Set([
-      post.authorId,
-      ...[...authorCounts.entries()]
-        .filter(([, count]) => count > 0)
-        .sort(([, leftCount], [, rightCount]) => rightCount - leftCount)
-        .map(([authorId]) => authorId),
-    ]),
-  ].filter((authorId) => authorChoiceIds.includes(authorId));
+  const resultAuthorIds = rankRevealAuthors(post.authorId, authorCounts, authorChoiceIds);
   const winnerCount = authorCounts.get(post.authorId) ?? 0;
 
   return {
