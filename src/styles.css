@@ -152,7 +152,6 @@ a {
 
 .home-card {
   padding: 28px 24px 32px;
-  min-height: 620px;
 }
 
 .home-card h1,
@@ -161,24 +160,53 @@ a {
   font-family: "Fraunces", Georgia, serif;
   font-style: italic;
   font-weight: 900;
-  letter-spacing: -0.055em;
-  line-height: 0.9;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
 }
 
 .home-card h1 {
-  font-size: clamp(2.75rem, 12vw, 5rem);
+  font-size: clamp(2rem, 8vw, 3.25rem);
 }
 
 .home-card p {
   max-width: 31rem;
-  margin: 18px 0 0;
+  margin: 14px 0 0;
   color: var(--ink-soft);
-  font-size: 1.05rem;
-  line-height: 1.45;
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .home-card .button {
-  margin-top: 28px;
+  margin-top: 22px;
+}
+
+.home-live {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.home-live__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.home-live__line {
+  color: var(--ink);
+}
+
+.home-live__hint {
+  color: var(--muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
 }
 
 .eyebrow,
