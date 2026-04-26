@@ -19,10 +19,9 @@ export const UI_COPY = {
     archive: {
       eyebrow: "Past slips",
       title: "The ledger.",
-      intro: (languageName) =>
-        `Revealed ${languageName} rounds stay visible here with the answer and how many players hit the handle.`,
+      intro: (languageName) => `Past ${languageName} rounds, with answers and hit rates.`,
       emptyTitle: "No reveals yet.",
-      emptyDetail: "The first archived round appears after the reveal window.",
+      emptyDetail: "Wait for the first reveal.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} winners · ${percentage}% hit rate`,
     },
@@ -54,7 +53,7 @@ export const UI_COPY = {
       loadingRound: "Loading round...",
       hiddenName: "— hidden —",
       fakePost: "Fake parody post",
-      fictionNotice: "Fictional parody generated for this game. Not a real tweet, quote, endorsement, or screenshot.",
+      fictionNotice: "Parody. Not a real post.",
       picks: (count) => `${count} picks`,
       liveCount: (count) => `${count} live`,
       whoPosted: "Who posted this?",
@@ -118,10 +117,9 @@ export const UI_COPY = {
     archive: {
       eyebrow: "Jugadas pasadas",
       title: "El registro.",
-      intro: (languageName) =>
-        `Las rondas reveladas en ${languageName} quedan aquí con la respuesta y cuántos jugadores acertaron el handle.`,
+      intro: (languageName) => `Rondas pasadas en ${languageName}, con respuestas y aciertos.`,
       emptyTitle: "Aún no hay revelaciones.",
-      emptyDetail: "La primera ronda archivada aparecerá después de la ventana de revelación.",
+      emptyDetail: "Espera la primera revelación.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} ganadores · ${percentage}% de acierto`,
     },
@@ -153,7 +151,7 @@ export const UI_COPY = {
       loadingRound: "Cargando ronda...",
       hiddenName: "— oculto —",
       fakePost: "Publicación falsa de parodia",
-      fictionNotice: "Parodia ficticia generada para este juego. No es un tuit, cita, respaldo ni captura real.",
+      fictionNotice: "Parodia. No es un post real.",
       picks: (count) => `${count} jugadas`,
       liveCount: (count) => `${count} en vivo`,
       whoPosted: "¿Quién publicó esto?",
@@ -217,10 +215,9 @@ export const UI_COPY = {
     archive: {
       eyebrow: "Choix passés",
       title: "Le registre.",
-      intro: (languageName) =>
-        `Les manches révélées en ${languageName} restent ici avec la réponse et le nombre de joueurs ayant trouvé le handle.`,
+      intro: (languageName) => `Manches passées en ${languageName}, avec réponses et taux de réussite.`,
       emptyTitle: "Aucune révélation pour l'instant.",
-      emptyDetail: "La première manche archivée apparaîtra après la fenêtre de révélation.",
+      emptyDetail: "Attendez la première révélation.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} gagnants · ${percentage}% de réussite`,
     },
@@ -252,7 +249,7 @@ export const UI_COPY = {
       loadingRound: "Chargement de la manche...",
       hiddenName: "— caché —",
       fakePost: "Faux post parodique",
-      fictionNotice: "Parodie fictive générée pour ce jeu. Ce n'est pas un vrai tweet, une citation, une approbation ni une capture.",
+      fictionNotice: "Parodie. Ce n'est pas un vrai post.",
       picks: (count) => `${count} choix`,
       liveCount: (count) => `${count} en direct`,
       whoPosted: "Qui a publié ça ?",
@@ -316,10 +313,9 @@ export const UI_COPY = {
     archive: {
       eyebrow: "Palpites passados",
       title: "O registro.",
-      intro: (languageName) =>
-        `Rodadas reveladas em ${languageName} ficam aqui com a resposta e quantas pessoas acertaram o handle.`,
+      intro: (languageName) => `Rodadas passadas em ${languageName}, com respostas e acertos.`,
       emptyTitle: "Ainda não há revelações.",
-      emptyDetail: "A primeira rodada arquivada aparece depois da janela de revelação.",
+      emptyDetail: "Espere a primeira revelação.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} vencedores · ${percentage}% de acerto`,
     },
@@ -351,7 +347,7 @@ export const UI_COPY = {
       loadingRound: "Carregando rodada...",
       hiddenName: "— oculto —",
       fakePost: "Publicação falsa de paródia",
-      fictionNotice: "Paródia fictícia gerada para este jogo. Não é tweet, citação, endosso nem captura real.",
+      fictionNotice: "Paródia. Não é um post real.",
       picks: (count) => `${count} palpites`,
       liveCount: (count) => `${count} ao vivo`,
       whoPosted: "Quem publicou isso?",
@@ -415,10 +411,9 @@ export const UI_COPY = {
     archive: {
       eyebrow: "Vergangene Tipps",
       title: "Das Register.",
-      intro: (languageName) =>
-        `Aufgelöste ${languageName}-Runden bleiben hier mit Antwort und Trefferzahl sichtbar.`,
+      intro: (languageName) => `Vergangene ${languageName}-Runden, mit Antworten und Trefferquoten.`,
       emptyTitle: "Noch keine Auflösungen.",
-      emptyDetail: "Die erste archivierte Runde erscheint nach dem Auflösungsfenster.",
+      emptyDetail: "Warte auf die erste Auflösung.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} Gewinner · ${percentage}% Trefferquote`,
     },
@@ -450,7 +445,7 @@ export const UI_COPY = {
       loadingRound: "Runde lädt...",
       hiddenName: "— versteckt —",
       fakePost: "Gefälschter Parodie-Post",
-      fictionNotice: "Fiktive Parodie für dieses Spiel. Kein echter Tweet, kein Zitat, keine Empfehlung und kein Screenshot.",
+      fictionNotice: "Parodie. Kein echter Post.",
       picks: (count) => `${count} Tipps`,
       liveCount: (count) => `${count} live`,
       whoPosted: "Wer hat das gepostet?",

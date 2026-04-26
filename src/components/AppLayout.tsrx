@@ -1,13 +1,18 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { DEFAULT_LANGUAGE, LANGUAGES, LANGUAGES_BY_ID } from "../gameData";
+import { LANGUAGES } from "../gameData";
 import { getCopy } from "../i18n";
+import { useCurrentLanguage } from "../router";
+
+function languageLinkProps(pathname, langId) {
+  if (pathname === "/") return { to: "/", search: { lang: langId } };
+  if (pathname.startsWith("/archive")) return { to: "/archive/$language", params: { language: langId } };
+  return { to: "/play/$language", params: { language: langId } };
+}
 
 export component AppLayout({ children }) {
+  const currentLanguage = useCurrentLanguage();
   const currentPath = useRouterState({ select: (state) => state.location.pathname });
-  const [, , pathLanguage] = currentPath.split("/");
-  const currentLanguage = LANGUAGES_BY_ID.has(pathLanguage) ? pathLanguage : DEFAULT_LANGUAGE;
   const copy = getCopy(currentLanguage);
-  const languageRoute = currentPath.startsWith("/archive") ? "/archive/$language" : "/play/$language";
 
   <div class="app-shell">
     <header class="topbar">
@@ -44,8 +49,7 @@ export component AppLayout({ children }) {
             activeProps={{ "data-active": "true" }}
             inactiveProps={{ "data-active": "false" }}
             className="language-rail__link"
-            params={{ language: language.id }}
-            to={languageRoute}
+            {...languageLinkProps(currentPath, language.id)}
           >
             {language.nativeName}
           </Link>

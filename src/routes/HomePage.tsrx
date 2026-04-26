@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { DEFAULT_LANGUAGE } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
 import { fetchCurrentRound } from "../liveApi";
+import { useCurrentLanguage } from "../router";
 
 function formatClock(value, language) {
   return new Intl.DateTimeFormat(getLocale(language), {
@@ -11,20 +11,21 @@ function formatClock(value, language) {
   }).format(new Date(value));
 }
 
+function roundPhase(round, language) {
+  if (round.status === "open") return `locks ${formatClock(round.locksAt, language)}`;
+  if (round.status === "locked") return `reveal ${formatClock(round.revealsAt, language)}`;
+  return "revealed";
+}
+
 export component HomePage() {
-  const copy = getCopy(DEFAULT_LANGUAGE);
+  const language = useCurrentLanguage();
+  const copy = getCopy(language);
   const { data: round } = useQuery({
-    queryKey: ["round", "all", DEFAULT_LANGUAGE],
-    queryFn: ({ signal }) => fetchCurrentRound("all", "home", DEFAULT_LANGUAGE, signal),
+    queryKey: ["round", "all", language],
+    queryFn: ({ signal }) => fetchCurrentRound("all", "home", language, signal),
   });
 
-  const liveLine = round
-    ? round.status === "open"
-      ? `Round ${round.contest.roundNumber} · locks ${formatClock(round.locksAt, DEFAULT_LANGUAGE)}`
-      : round.status === "locked"
-        ? `Round ${round.contest.roundNumber} · reveal ${formatClock(round.revealsAt, DEFAULT_LANGUAGE)}`
-        : `Round ${round.contest.roundNumber} · revealed`
-    : null;
+  const liveLine = round ? `Round ${round.contest.roundNumber} · ${roundPhase(round, language)}` : null;
 
   <section class="home-card">
     <p class="eyebrow">{copy.home.eyebrow}</p>
@@ -40,7 +41,7 @@ export component HomePage() {
       </div>
     }
 
-    <Link className="button button--primary" params={{ language: DEFAULT_LANGUAGE }} to="/play/$language">
+    <Link className="button button--primary" params={{ language }} to="/play/$language">
       {copy.home.cta}
     </Link>
   </section>

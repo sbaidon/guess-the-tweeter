@@ -5,12 +5,24 @@ import {
   createRouter,
   redirect,
   useParams,
+  useRouterState,
 } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppLayout.tsrx";
-import { DEFAULT_LANGUAGE, isLanguageKey } from "./gameData";
+import { DEFAULT_LANGUAGE, LANGUAGES_BY_ID, isLanguageKey } from "./gameData";
 import { ArchivePage } from "./routes/ArchivePage.tsrx";
 import { HomePage } from "./routes/HomePage.tsrx";
 import { PlayPage } from "./routes/PlayPage.tsrx";
+
+export function useCurrentLanguage() {
+  return useRouterState({
+    select: (state) => {
+      const [, , pathLanguage] = state.location.pathname.split("/");
+      if (LANGUAGES_BY_ID.has(pathLanguage)) return pathLanguage;
+      const queryLang = state.location.search?.lang;
+      return isLanguageKey(queryLang) ? queryLang : DEFAULT_LANGUAGE;
+    },
+  });
+}
 
 const rootRoute = createRootRoute({
   component: () => (
