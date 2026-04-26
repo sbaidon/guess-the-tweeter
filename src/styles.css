@@ -470,6 +470,14 @@ a {
   font-family: "Fraunces", Georgia, serif;
   font-style: italic;
   font-weight: 900;
+  overflow: hidden;
+}
+
+.post-card__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .post-card__avatar.is-hidden {

@@ -67,6 +67,13 @@ jobs:
             sudo -u guess bun install --frozen-lockfile
             sudo -u guess bun run typecheck:server
             sudo -u guess bun run build
+            if ! cmp -s deploy/caddy/Caddyfile /etc/caddy/Caddyfile; then
+              PUBLIC_IP=$(curl -fsS https://ipv4.icanhazip.com)
+              SSLIP_HOST="${PUBLIC_IP//./-}.sslip.io"
+              sudo cp deploy/caddy/Caddyfile /etc/caddy/Caddyfile
+              sudo sed -i "s/guess-the-tweeter.example.com/$SSLIP_HOST/g" /etc/caddy/Caddyfile
+              sudo systemctl reload caddy
+            fi
             sudo systemctl restart guess-the-tweeter
             for i in $(seq 1 20); do
               if curl -fsS http://127.0.0.1:8787/healthz >/dev/null; then

@@ -170,6 +170,25 @@ function pickAuthorId(pick) {
   return pick && pick.kind === "matched" ? pick.authorId : null;
 }
 
+function avatarUrl(handle) {
+  const stripped = handle.replace(/^@/, "").trim();
+  return stripped ? `https://unavatar.io/x/${encodeURIComponent(stripped)}` : null;
+}
+
+component AuthorAvatar({ author, hidden }) {
+  const [failed, setFailed] = useState(false);
+  const url = author && !hidden ? avatarUrl(author.handle) : null;
+  const showImage = url && !failed;
+
+  <div class={`post-card__avatar ${hidden ? "is-hidden" : ""}`}>
+    if (showImage) {
+      <img alt="" loading="lazy" src={url} onError={() => setFailed(true)} />
+    } else if (!hidden) {
+      <span>{author.name.charAt(0)}</span>
+    }
+  </div>
+}
+
 export component GameBoard({ category, language = "en" }) {
   const [clientId] = useState(getClientId);
   const [handleGuess, setHandleGuess] = useState("");
@@ -322,9 +341,7 @@ export component GameBoard({ category, language = "en" }) {
     if (round) {
       <article class="post-card">
         <div class="post-card__head">
-          <div class={`post-card__avatar ${isRevealed ? "" : "is-hidden"}`}>
-            {isRevealed ? round.answer.author.name.charAt(0) : ""}
-          </div>
+          <AuthorAvatar author={isRevealed ? round.answer.author : null} hidden={!isRevealed} />
           <div>
             <div class="post-card__name">
               {isRevealed ? round.answer.author.name : copy.game.hiddenName}
