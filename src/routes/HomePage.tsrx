@@ -29,7 +29,6 @@ export component HomePage() {
   <section class="home-card">
     <p class="eyebrow">{copy.home.eyebrow}</p>
     <h1>{copy.home.title}</h1>
-    <p>{copy.home.intro}</p>
 
     if (liveLine) {
       <div class="home-live">
