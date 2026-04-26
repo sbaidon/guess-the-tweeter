@@ -79,6 +79,7 @@ type RoundRecord = {
 type SubmissionRow = {
   round_id: string;
   client_id: string;
+  identity: string | null;
   author_choice_id: string | null;
   author_guess_text: string | null;
   model_choice_id: string | null;
@@ -199,6 +200,10 @@ type SubmissionBody = {
   authorGuess?: unknown;
   modelId?: unknown;
   stake?: unknown;
+  pubkey?: unknown;
+  signature?: unknown;
+  nonce?: unknown;
+  timestamp?: unknown;
 };
 
 type ChannelSocket = WebSocket & {
@@ -441,8 +446,12 @@ const statements = {
   setPlayerPoints: db.prepare(
     "UPDATE players SET points = ?, last_topup_at = ? WHERE identity = ?",
   ),
+  deletePlayer: db.prepare("DELETE FROM players WHERE identity = ?"),
   setSubmissionStake: db.prepare(
     "UPDATE submissions SET stake = ? WHERE round_id = ? AND client_id = ?",
+  ),
+  setSubmissionIdentity: db.prepare(
+    "UPDATE submissions SET identity = ? WHERE round_id = ? AND client_id = ?",
   ),
   getRoundSubmissions: db.prepare<SubmissionRow, [string]>(
     "SELECT * FROM submissions WHERE round_id = ?",
@@ -455,9 +464,11 @@ const statements = {
   ),
   getTopPlayers: db.prepare<{ identity: string; points: number; settled_count: number }, [number]>(`
     SELECT p.identity, p.points,
-      (SELECT COUNT(*) FROM submissions s WHERE s.client_id = SUBSTR(p.identity, 6) AND s.settled_at IS NOT NULL) AS settled_count
+      (SELECT COUNT(*) FROM submissions s
+        WHERE s.settled_at IS NOT NULL
+          AND (s.identity = p.identity
+               OR (s.identity IS NULL AND 'uuid:' || s.client_id = p.identity))) AS settled_count
     FROM players p
-    WHERE p.identity LIKE 'uuid:%'
     ORDER BY p.points DESC, p.created_at ASC
     LIMIT ?
   `),
@@ -467,6 +478,7 @@ const recordSubmission = db.transaction(
   (
     roundId: string,
     clientId: string,
+    identity: string,
     authorId: string | undefined,
     authorGuess: string | undefined,
     modelId: string | undefined,
@@ -505,6 +517,10 @@ const recordSubmission = db.transaction(
         }
       }
 
+      if (existingSubmission.identity !== identity) {
+        statements.setSubmissionIdentity.run(identity, roundId, clientId);
+      }
+
       if (stake !== undefined && stake !== existingSubmission.stake) {
         statements.setSubmissionStake.run(stake, roundId, clientId);
       }
@@ -539,6 +555,8 @@ const recordSubmission = db.transaction(
     if (result.changes === 0) {
       return false;
     }
+
+    statements.setSubmissionIdentity.run(identity, roundId, clientId);
 
     if (stake !== undefined && stake > 0) {
       statements.setSubmissionStake.run(stake, roundId, clientId);
@@ -888,7 +906,7 @@ function rankRevealAuthors(
   return choiceIds.includes(correctId) ? [correctId, ...others] : others;
 }
 
-function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayload {
+function publicRound(round: RoundRow, clientId?: string | null, identityOverride?: string): PublicRoundPayload {
   const status = computeStatus(round);
   const post = getPlayablePost(round.post_id);
   const contest = ensureContestSettings();
@@ -945,7 +963,8 @@ function publicRound(round: RoundRow, clientId?: string | null): PublicRoundPayl
   };
 
   if (clientId) {
-    base.player = { points: ensurePlayer(clientId).points };
+    const identity = identityOverride ?? identityFor(clientId);
+    base.player = { points: ensurePlayer(identity).points };
   }
 
   if (status !== "revealed") {
@@ -998,12 +1017,95 @@ function publicPlayerTag(identity: string): string {
   return `Player-${hash.slice(0, 4).toUpperCase()}`;
 }
 
+const SIGNATURE_REPLAY_WINDOW_MS = 30_000;
+const usedNonces = new Map<string, number>();
+
+function pruneUsedNonces(): void {
+  const cutoff = Date.now() - SIGNATURE_REPLAY_WINDOW_MS * 2;
+  for (const [nonce, ts] of usedNonces) {
+    if (ts < cutoff) usedNonces.delete(nonce);
+  }
+}
+
+function verifySignedRequest(args: {
+  pubkey: string;
+  signature: string;
+  timestamp: number;
+  nonce: string;
+  message: string;
+}): { ok: true } | { ok: false; reason: string } {
+  if (!Number.isFinite(args.timestamp)) return { ok: false, reason: "bad_timestamp" };
+  const skew = Math.abs(Date.now() - args.timestamp);
+  if (skew > SIGNATURE_REPLAY_WINDOW_MS) return { ok: false, reason: "stale" };
+  if (!args.nonce || args.nonce.length < 8 || args.nonce.length > 128) {
+    return { ok: false, reason: "bad_nonce" };
+  }
+  if (usedNonces.has(args.nonce)) return { ok: false, reason: "replay" };
+
+  let publicKey;
+  try {
+    publicKey = crypto.createPublicKey({
+      key: Buffer.from(args.pubkey, "base64"),
+      format: "der",
+      type: "spki",
+    });
+  } catch {
+    return { ok: false, reason: "bad_pubkey" };
+  }
+
+  const sigBuf = Buffer.from(args.signature, "base64");
+  let valid = false;
+  try {
+    valid = crypto.verify(
+      "sha256",
+      Buffer.from(args.message, "utf8"),
+      { key: publicKey, dsaEncoding: "ieee-p1363" },
+      sigBuf,
+    );
+  } catch {
+    return { ok: false, reason: "verify_error" };
+  }
+  if (!valid) return { ok: false, reason: "bad_signature" };
+
+  usedNonces.set(args.nonce, Date.now());
+  return { ok: true };
+}
+
+function pubkeyIdentity(pubkey: string): string {
+  return `pk:${pubkey}`;
+}
+
+const claimPlayer = db.transaction((pkIdentity: string, fromClientId: string | undefined): PlayerRow => {
+  const existingPk = statements.getPlayer.get(pkIdentity);
+  if (existingPk) return existingPk;
+
+  const now = Date.now();
+  if (fromClientId) {
+    const fromUuid = identityFor(fromClientId);
+    const fromPlayer = statements.getPlayer.get(fromUuid);
+    if (fromPlayer) {
+      statements.insertPlayer.run(pkIdentity, fromPlayer.points, now);
+      statements.deletePlayer.run(fromUuid);
+      db.prepare("UPDATE submissions SET identity = ? WHERE client_id = ? AND identity IS NULL").run(
+        pkIdentity,
+        fromClientId,
+      );
+      const created = statements.getPlayer.get(pkIdentity);
+      if (!created) throw new Error("Failed to create claimed player");
+      return created;
+    }
+  }
+  statements.insertPlayer.run(pkIdentity, STARTING_POINTS, now);
+  const created = statements.getPlayer.get(pkIdentity);
+  if (!created) throw new Error("Failed to create claimed player");
+  return created;
+});
+
 function normalizeHandle(value: string): string {
   return value.replace(/^@/, "").trim().toLowerCase();
 }
 
-function ensurePlayer(clientId: string): PlayerRow {
-  const identity = identityFor(clientId);
+function ensurePlayer(identity: string): PlayerRow {
   const existing = statements.getPlayer.get(identity);
   if (existing && existing.points > 0) return existing;
 
@@ -1050,11 +1152,12 @@ const settleRound = db.transaction((roundId: string) => {
   for (const submission of submissions) {
     if (submission.settled_at !== null) continue;
     const payout = computePayout(submission, post, correctAuthor.handle);
-    const player = ensurePlayer(submission.client_id);
+    const identity = submission.identity ?? identityFor(submission.client_id);
+    const player = ensurePlayer(identity);
     statements.setPlayerPoints.run(
       Math.max(0, player.points + payout),
       player.last_topup_at,
-      identityFor(submission.client_id),
+      identity,
     );
     statements.setSubmissionPayout.run(payout, now, roundId, submission.client_id);
   }
@@ -1072,6 +1175,9 @@ function ensureSubmissionStakeColumns(): void {
   }
   if (!names.has("payout")) {
     db.exec("ALTER TABLE submissions ADD COLUMN payout INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!names.has("identity")) {
+    db.exec("ALTER TABLE submissions ADD COLUMN identity TEXT");
   }
 }
 
@@ -1280,7 +1386,10 @@ function requireAdmin(request: IncomingMessage, response: ServerResponse): boole
 async function handleApi(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
   if (request.method === "GET" && url.pathname === "/api/rounds/current") {
     const round = ensureCurrentRoundForLanguage(publicCategory, getRequestLanguage(url));
-    return json(response, 200, publicRound(round, url.searchParams.get("clientId")));
+    const clientId = url.searchParams.get("clientId");
+    const identityParam = url.searchParams.get("identity");
+    const identity = identityParam && identityParam.startsWith("pk:") ? identityParam : undefined;
+    return json(response, 200, publicRound(round, clientId, identity));
   }
 
   if (request.method === "GET" && url.pathname === "/api/rounds/history") {
@@ -1299,6 +1408,35 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     return json(response, 200, { rounds: publicRounds });
   }
 
+  if (request.method === "POST" && url.pathname === "/api/players/claim") {
+    if (!isJsonRequest(request)) return unsupportedMediaType(response);
+    if (isBodyTooLarge(request)) return payloadTooLarge(response);
+
+    const body = (await readJson(request)) as Record<string, unknown>;
+    const pubkey = typeof body.pubkey === "string" ? body.pubkey : "";
+    const signature = typeof body.signature === "string" ? body.signature : "";
+    const timestamp = typeof body.timestamp === "number" ? body.timestamp : NaN;
+    const nonce = typeof body.nonce === "string" ? body.nonce : "";
+    const fromClientId = typeof body.fromClientId === "string" ? body.fromClientId : undefined;
+
+    if (!pubkey || !signature || !nonce) {
+      return badRequest(response, "Missing claim fields.");
+    }
+
+    const message = `claim|${timestamp}|${nonce}|${pubkey}|${fromClientId ?? ""}`;
+    const verdict = verifySignedRequest({ pubkey, signature, timestamp, nonce, message });
+    if (verdict.ok !== true) return badRequest(response, `signature_${verdict.reason}`);
+
+    const identity = pubkeyIdentity(pubkey);
+    const player = claimPlayer(identity, fromClientId);
+    logInfo("player_claimed", { identity: publicPlayerTag(identity), fromClientId: fromClientId ?? null });
+    return json(response, 200, {
+      identity,
+      tag: publicPlayerTag(identity),
+      points: player.points,
+    });
+  }
+
   if (request.method === "GET" && url.pathname === "/api/leaderboard") {
     const requestedLimit = Number(url.searchParams.get("limit") ?? 50);
     const limit = Number.isFinite(requestedLimit)
@@ -1306,12 +1444,19 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       : 50;
     const rows = statements.getTopPlayers.all(limit);
     const clientId = url.searchParams.get("clientId");
+    const identityParam = url.searchParams.get("identity");
+    const yourIdentity =
+      identityParam && identityParam.startsWith("pk:")
+        ? identityParam
+        : clientId
+          ? identityFor(clientId)
+          : null;
     const players = rows.map((row, index) => ({
       rank: index + 1,
       tag: publicPlayerTag(row.identity),
       points: row.points,
       rounds: row.settled_count ?? 0,
-      you: clientId ? row.identity === identityFor(clientId) : false,
+      you: yourIdentity ? row.identity === yourIdentity : false,
     }));
     return json(response, 200, { players });
   }
@@ -1361,6 +1506,18 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       return json(response, 429, { error: "rate_limited" });
     }
 
+    let identity = identityFor(body.clientId);
+    if (typeof body.pubkey === "string" && body.pubkey) {
+      const pubkey = body.pubkey;
+      const signature = typeof body.signature === "string" ? body.signature : "";
+      const timestamp = typeof body.timestamp === "number" ? body.timestamp : NaN;
+      const nonce = typeof body.nonce === "string" ? body.nonce : "";
+      const message = `submit|${roundId}|${body.clientId}|${timestamp}|${nonce}|${pubkey}`;
+      const verdict = verifySignedRequest({ pubkey, signature, timestamp, nonce, message });
+      if (verdict.ok !== true) return badRequest(response, `signature_${verdict.reason}`);
+      identity = pubkeyIdentity(pubkey);
+    }
+
     const rawAuthorGuess = typeof body.authorGuess === "string" ? body.authorGuess.trim() : "";
     const authorGuess = rawAuthorGuess || undefined;
     const authorId = authorGuess
@@ -1387,7 +1544,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     }
 
     if (stake !== undefined) {
-      const player = ensurePlayer(body.clientId);
+      const player = ensurePlayer(identity);
       const existing = statements.getSubmission.get(roundId, body.clientId) as SubmissionRow | null;
       const openStakeSum = statements.sumOpenStakes.get(body.clientId)?.total ?? 0;
       const otherOpenStakes = openStakeSum - (existing?.stake ?? 0);
@@ -1397,13 +1554,13 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     }
 
     const now = Date.now();
-    const recorded = recordSubmission(roundId, body.clientId, authorId, authorGuess, modelId, stake, now);
+    const recorded = recordSubmission(roundId, body.clientId, identity, authorId, authorGuess, modelId, stake, now);
 
     if (recorded) {
       markRoomDirty(roundLanguage(round));
     }
 
-    return json(response, 200, publicRound(round, body.clientId));
+    return json(response, 200, publicRound(round, body.clientId, identity));
   }
 
   const revealMatch = url.pathname.match(/^\/api\/admin\/rounds\/([^/]+)\/reveal$/);
@@ -1611,6 +1768,7 @@ for (const language of LANGUAGE_ORDER) {
 
 setInterval(pruneSubmissionRateLimits, submissionRateLimitWindowMs).unref?.();
 setInterval(flushRoomUpdates, roomSnapshotIntervalMs).unref?.();
+setInterval(pruneUsedNonces, SIGNATURE_REPLAY_WINDOW_MS).unref?.();
 
 server.listen(port, host, () => {
   logInfo("server_listening", {
