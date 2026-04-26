@@ -322,7 +322,6 @@ export component GameBoard({ category, language = "en" }) {
       <div class="phase-meter" data-phase={round?.status ?? "loading"}>
         <span>{phaseCopy.label}</span>
         <strong>{phaseCopy.value}</strong>
-        <small>{phaseCopy.detail}</small>
       </div>
     </header>
 
@@ -354,7 +353,6 @@ export component GameBoard({ category, language = "en" }) {
           {copy.game.fictionNotice}
         </div>
         <div class="post-card__foot">
-          <span>{copy.game.fakePost}</span>
           <span>{copy.game.picks(round.totals.submissions)}</span>
           <span>{copy.game.liveCount(round.totals.connected)}</span>
         </div>
@@ -385,7 +383,7 @@ export component GameBoard({ category, language = "en" }) {
           <div class="guess-help">
             {normalizedHandleGuess
               ? matchedCurrentPick
-                ? copy.game.currentPick
+                ? ""
                 : matchedAuthor
                 ? copy.game.matched(matchedAuthor.handle)
                 : copy.game.freeformGuess(handleGuess.trim())
@@ -420,20 +418,20 @@ export component GameBoard({ category, language = "en" }) {
           </div>
         }
 
-        <button
-          class="slip-action"
-          disabled={!normalizedHandleGuess || matchedCurrentPick || pending}
-          type="button"
-          onClick={() => submitPick({ authorGuess: handleGuess.trim() })}
-        >
-          {normalizedHandleGuess
-            ? matchedCurrentPick
-              ? copy.game.currentPick
-              : hasAuthorPick
+        if (!matchedCurrentPick) {
+          <button
+            class="slip-action"
+            disabled={!normalizedHandleGuess || pending}
+            type="button"
+            onClick={() => submitPick({ authorGuess: handleGuess.trim() })}
+          >
+            {normalizedHandleGuess
+              ? hasAuthorPick
                 ? copy.game.updateSlip
                 : copy.game.placeSlip
-            : copy.game.enterHandle}
-        </button>
+              : copy.game.enterHandle}
+          </button>
+        }
       }
 
       if (hasAuthorPick || !isOpen) {
@@ -475,7 +473,6 @@ export component GameBoard({ category, language = "en" }) {
         <section class="bonus-card">
           <div class="bonus-card__header">
             <p class="eyebrow">{copy.game.modelBonus}</p>
-            <h2>{copy.game.modelBonusDetail}</h2>
           </div>
 
           if (isOpen) {
