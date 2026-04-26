@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { CATEGORY_META, DEFAULT_LANGUAGE, LANGUAGES_BY_ID } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
 import { fetchRoundHistory } from "../liveApi";
@@ -13,27 +13,14 @@ function formatRoundTime(value, language) {
 }
 
 export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
-  const [rounds, setRounds] = useState([]);
-  const [error, setError] = useState("");
   const languageMeta = LANGUAGES_BY_ID.get(language);
   const copy = getCopy(language);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetchRoundHistory(18, language, controller.signal)
-      .then((payload) => {
-        setRounds(payload.rounds ?? []);
-        setError("");
-      })
-      .catch((nextError) => {
-        if (nextError.name !== "AbortError") {
-          setError(copy.errors.loadArchive);
-        }
-      });
-
-    return () => controller.abort();
-  }, [language]);
+  const { data, isError } = useQuery({
+    queryKey: ["roundHistory", language],
+    queryFn: ({ signal }) => fetchRoundHistory(18, language, signal),
+  });
+  const rounds = data?.rounds ?? [];
+  const error = isError ? copy.errors.loadArchive : "";
 
   <section class="archive-card">
     <p class="eyebrow">{copy.archive.eyebrow}</p>

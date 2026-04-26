@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CATEGORY_META } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
 import { createRoundSocket, fetchCurrentRound, getClientId, submitRoundPick } from "../liveApi";
@@ -119,6 +120,7 @@ function mergeRoundSnapshot(currentRound, snapshotRound) {
 
   return {
     ...snapshotRound,
+    player: currentRound.player ?? snapshotRound.player,
     submission: snapshotStillIncludesSubmissionWindow
       ? currentRound.submission ?? snapshotRound.submission
       : snapshotRound.submission,
@@ -170,12 +172,31 @@ function pickAuthorId(pick) {
 
 export component GameBoard({ category, language = "en" }) {
   const [clientId] = useState(getClientId);
-  const [round, setRound] = useState(null);
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
   const [handleGuess, setHandleGuess] = useState("");
   const [now, setNow] = useState(Date.now());
+  const queryClient = useQueryClient();
   const copy = getCopy(language);
+  const queryKey = ["round", category, language, clientId];
+
+  const { data: round = null, isError: roundQueryError, refetch: refetchRound } = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => fetchCurrentRound(category, clientId, language, signal),
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: (payload) => submitRoundPick(round.id, { clientId, ...payload }),
+    onSuccess: (nextRound, payload) => {
+      queryClient.setQueryData(queryKey, nextRound);
+      if (payload.authorGuess) setHandleGuess("");
+    },
+  });
+
+  const error = submitMutation.isError
+    ? copy.errors.roundClosed
+    : roundQueryError
+      ? copy.errors.loadRound
+      : "";
+  const pending = submitMutation.isPending;
   const postMeta = round ? CATEGORY_META[round.post.category] : CATEGORY_META.all;
   const categoryName = round
     ? copy.categories[round.post.category] ?? postMeta.name
@@ -228,87 +249,33 @@ export component GameBoard({ category, language = "en" }) {
   }, [round?.id, selectedAuthorGuess]);
 
   useEffect(() => {
-    if (!round || round.status === "revealed") {
-      return;
-    }
-
+    if (!round || round.status === "revealed") return;
     const target = new Date(round.status === "open" ? round.locksAt : round.revealsAt).getTime();
-    const timeout = window.setTimeout(() => {
-      fetchCurrentRound(category, clientId, language)
-        .then((nextRound) => {
-          setRound(nextRound);
-          setHandleGuess("");
-          setError("");
-        })
-        .catch(() => setError(copy.errors.loadRound));
-    }, Math.max(0, target - Date.now()) + 800);
-
+    const timeout = window.setTimeout(
+      () => refetchRound(),
+      Math.max(0, target - Date.now()) + 800,
+    );
     return () => window.clearTimeout(timeout);
-  }, [category, clientId, language, round?.id, round?.locksAt, round?.revealsAt, round?.status]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetchCurrentRound(category, clientId, language, controller.signal)
-      .then((nextRound) => {
-        setRound(nextRound);
-        setHandleGuess("");
-        setError("");
-      })
-      .catch((nextError) => {
-        if (nextError.name !== "AbortError") {
-          setError(copy.errors.loadRound);
-        }
-      });
-
-    return () => controller.abort();
-  }, [category, clientId, language]);
+  }, [round?.id, round?.locksAt, round?.revealsAt, round?.status, refetchRound]);
 
   useEffect(() => {
     const socket = createRoundSocket(category, language);
-
     socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);
-
       if (message.type === "round:snapshot" && message.round) {
-        setRound((currentRound) => mergeRoundSnapshot(currentRound, message.round));
-        setError("");
-        return;
-      }
-
-      if (message.type === "round:update") {
-        fetchCurrentRound(category, clientId, language)
-          .then((nextRound) => {
-            setRound(nextRound);
-            setHandleGuess("");
-            setError("");
-          })
-          .catch(() => setError(copy.errors.loadRound));
+        queryClient.setQueryData(["round", category, language, clientId], (current) =>
+          mergeRoundSnapshot(current, message.round),
+        );
+      } else if (message.type === "round:update") {
+        refetchRound();
       }
     });
-
     return () => socket.close();
-  }, [category, clientId, language]);
+  }, [category, clientId, language, queryClient, refetchRound]);
 
-  async function submitPick(payload) {
-    if (!round || pending || !isOpen) {
-      return;
-    }
-
-    setPending(true);
-
-    try {
-      const nextRound = await submitRoundPick(round.id, { clientId, ...payload });
-      setRound(nextRound);
-      if (payload.authorGuess) {
-        setHandleGuess("");
-      }
-      setError("");
-    } catch (nextError) {
-      setError(copy.errors.roundClosed);
-    } finally {
-      setPending(false);
-    }
+  function submitPick(payload) {
+    if (!round || pending || !isOpen) return;
+    submitMutation.mutate(payload);
   }
 
   function setStake(value) {

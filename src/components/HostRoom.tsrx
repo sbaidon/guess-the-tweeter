@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CATEGORY_META } from "../gameData";
 import {
   createNextRound,
@@ -18,12 +19,11 @@ function formatTime(value) {
 
 export component HostRoom({ category }) {
   const [clientId] = useState(getClientId);
-  const [round, setRound] = useState(null);
   const [adminToken, setAdminToken] = useState(
     () => window.sessionStorage.getItem("guess-the-tweeter-admin-token") ?? "",
   );
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
+  const queryClient = useQueryClient();
+  const queryKey = ["round", category, "en", clientId];
   const meta = CATEGORY_META[category];
 
   useEffect(() => {
@@ -35,46 +35,30 @@ export component HostRoom({ category }) {
     window.localStorage.removeItem("guess-the-tweeter-admin-token");
   }, [adminToken]);
 
-  useEffect(() => {
-    fetchCurrentRound(category, clientId)
-      .then((nextRound) => {
-        setRound(nextRound);
-        setError("");
-      })
-      .catch((nextError) => setError(nextError.message));
-  }, [category, clientId]);
+  const { data: round = null, error: roundError, refetch: refetchRound } = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => fetchCurrentRound(category, clientId, "en", signal),
+  });
+
+  const adminMutation = useMutation({
+    mutationFn: (action) => action(),
+    onSuccess: (nextRound) => queryClient.setQueryData(queryKey, nextRound),
+  });
+
+  const error = adminMutation.error?.message ?? roundError?.message ?? "";
+  const pending = adminMutation.isPending;
 
   useEffect(() => {
     const socket = createRoundSocket(category);
-
     socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);
-
-      if (message.type === "round:update") {
-        fetchCurrentRound(category, clientId)
-          .then((nextRound) => {
-            setRound(nextRound);
-            setError("");
-          })
-          .catch((nextError) => setError(nextError.message));
-      }
+      if (message.type === "round:update") refetchRound();
     });
-
     return () => socket.close();
-  }, [category, clientId]);
+  }, [category, refetchRound]);
 
-  async function runAdminAction(action) {
-    setPending(true);
-
-    try {
-      const nextRound = await action();
-      setRound(nextRound);
-      setError("");
-    } catch (nextError) {
-      setError(nextError.message);
-    } finally {
-      setPending(false);
-    }
+  function runAdminAction(action) {
+    adminMutation.mutate(action);
   }
 
   <div

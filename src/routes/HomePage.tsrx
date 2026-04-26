@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { DEFAULT_LANGUAGE } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
 import { fetchCurrentRound } from "../liveApi";
@@ -12,16 +12,11 @@ function formatClock(value, language) {
 }
 
 export component HomePage() {
-  const [round, setRound] = useState(null);
   const copy = getCopy(DEFAULT_LANGUAGE);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchCurrentRound("all", "home", DEFAULT_LANGUAGE, controller.signal)
-      .then(setRound)
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
+  const { data: round } = useQuery({
+    queryKey: ["round", "all", DEFAULT_LANGUAGE],
+    queryFn: ({ signal }) => fetchCurrentRound("all", "home", DEFAULT_LANGUAGE, signal),
+  });
 
   const liveLine = round
     ? round.status === "open"
