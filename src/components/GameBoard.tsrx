@@ -291,37 +291,23 @@ export component GameBoard({ category, language = "en" }) {
     }
 
     <header class="game-card__header">
-      <div class="live-strip">
-        <span>
+      <div class="game-meta">
+        <span class="game-meta__live">
           <span class="live-dot" />
           {copy.game.live}
         </span>
         if (player) {
-          <span class="balance-pill" aria-label="balance">{`BAL ${player.points}`}</span>
+          <span class="game-meta__chip" aria-label="balance">{`BAL ${player.points}`}</span>
         }
-        <span>{round ? getStatusLabel(round, language, copy) : copy.game.loading}</span>
+        if (round) {
+          <span class="game-meta__chip">{copy.game.filedUnder(categoryName, round.post.languageNativeName)}</span>
+          <span class="game-meta__chip game-meta__chip--accent">{`${round.contest?.roundNumber ?? "?"}/${round.contest?.totalRounds ?? "?"}`}</span>
+        }
       </div>
 
-      <h1>
-        {copy.game.titleTop}
-        <br />
-        <span>{copy.game.titleBottom}</span>
-      </h1>
-
-      <div class="genre-strip">
-        {round
-          ? copy.game.filedUnder(categoryName, round.post.languageNativeName)
-          : copy.game.fetchingLiveRound}
-      </div>
-      <div class="contest-strip">
-        {round
-          ? `${formatContestCountdown(round.contest?.endsAt, copy)} · ${round.contest?.roundNumber ?? "?"}/${round.contest?.totalRounds ?? "?"}`
-          : copy.game.archiveFallback}
-      </div>
-
-      <div class="phase-meter" data-phase={round?.status ?? "loading"}>
-        <span>{phaseCopy.label}</span>
-        <strong>{phaseCopy.value}</strong>
+      <div class="game-clock" data-phase={round?.status ?? "loading"}>
+        <span class="game-clock__label">{phaseCopy.label}</span>
+        <strong class="game-clock__value">{phaseCopy.value}</strong>
       </div>
     </header>
 
@@ -357,8 +343,6 @@ export component GameBoard({ category, language = "en" }) {
           <span>{copy.game.liveCount(round.totals.connected)}</span>
         </div>
       </article>
-
-      <div class="prompt-row">{copy.game.whoPosted}</div>
 
       if (isOpen) {
         <div class="guess-box">

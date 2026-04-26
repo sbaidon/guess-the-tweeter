@@ -225,13 +225,79 @@ a {
 
 .game-card {
   position: relative;
-  min-height: 860px;
-  padding: 26px 24px 32px;
+  padding: 18px 18px 22px;
 }
 
 .game-card__header {
   display: grid;
-  gap: 0;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.game-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.game-meta__live {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.game-meta__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-meta__chip--accent {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.game-clock {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.game-clock__label {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.game-clock__value {
+  color: var(--red);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.7rem;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-clock[data-phase="revealed"] .game-clock__value {
+  color: var(--ink);
 }
 
 .live-strip {
@@ -263,11 +329,11 @@ a {
 .stake-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 14px 0 10px;
+  gap: 6px;
+  margin: 10px 0 6px;
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.66rem;
-  letter-spacing: 0.22em;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
@@ -278,14 +344,14 @@ a {
 
 .stake-chip {
   flex: 0 0 auto;
-  padding: 7px 12px;
+  padding: 6px 10px;
   border: 1px solid var(--rule);
   background: transparent;
   color: var(--ink-soft);
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   cursor: pointer;
   transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
 }
@@ -324,73 +390,6 @@ a {
   color: var(--ink-soft);
 }
 
-.game-card h1 {
-  margin-top: 16px;
-  font-size: clamp(2.7rem, 11vw, 3.8rem);
-}
-
-.game-card h1 span {
-  color: var(--red);
-}
-
-.genre-strip {
-  margin-top: 18px;
-  padding-bottom: 0;
-  color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.64rem;
-  letter-spacing: 0.22em;
-  line-height: 1.55;
-  text-transform: uppercase;
-}
-
-.contest-strip {
-  padding: 12px 0 0;
-  color: var(--red);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  line-height: 1.55;
-  text-transform: uppercase;
-}
-
-.phase-meter {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px 12px;
-  align-items: end;
-  margin-top: 16px;
-  padding: 14px 0 0;
-  border-top: 1px solid rgba(18, 18, 18, 0.3);
-}
-
-.phase-meter span,
-.phase-meter small {
-  color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  line-height: 1.45;
-  text-transform: uppercase;
-}
-
-.phase-meter strong {
-  grid-row: span 2;
-  color: var(--red);
-  font-family: "Fraunces", Georgia, serif;
-  font-size: 2rem;
-  font-style: italic;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 0.9;
-}
-
-.phase-meter small {
-  letter-spacing: 0.08em;
-  text-transform: none;
-}
 
 .stamp {
   position: absolute;
@@ -419,9 +418,9 @@ a {
 
 .notice {
   display: grid;
-  gap: 8px;
-  margin-top: 18px;
-  padding: 14px 0 14px 14px;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 10px 0 10px 12px;
   border-left: 3px solid var(--red);
   color: var(--ink-soft);
   line-height: 1.28;
@@ -434,7 +433,7 @@ a {
   font-weight: 900;
   letter-spacing: -0.02em;
   line-height: 1.08;
-  font-size: 1.7rem;
+  font-size: 1.3rem;
 }
 
 .notice--bad {
@@ -446,8 +445,8 @@ a {
 }
 
 .post-card {
-  margin-top: 22px;
-  padding: 18px 17px 16px;
+  margin-top: 14px;
+  padding: 14px 14px 12px;
   border: 0;
   background: rgba(18, 18, 18, 0.035);
 }
@@ -504,14 +503,14 @@ a {
   font-style: italic;
   font-weight: 600;
   letter-spacing: -0.005em;
-  line-height: 1.34;
+  line-height: 1.32;
   text-wrap: pretty;
-  font-size: clamp(1.2rem, 5.5vw, 1.38rem);
+  font-size: clamp(1.05rem, 4.5vw, 1.18rem);
 }
 
 .fiction-notice {
-  margin-top: 16px;
-  padding: 10px 0 0;
+  margin-top: 12px;
+  padding: 8px 0 0;
   border-top: 1px solid rgba(200, 51, 28, 0.3);
   background: transparent;
   color: var(--red-ink);
@@ -519,7 +518,7 @@ a {
   font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  line-height: 1.6;
+  line-height: 1.5;
   text-transform: uppercase;
 }
 
@@ -535,24 +534,15 @@ a {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 10px;
   padding-top: 0;
   border-top: 0;
   color: var(--muted);
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.68rem;
-  line-height: 1.5;
-}
-
-.prompt-row {
-  padding-top: 22px;
-  padding-bottom: 12px;
-  font-family: "Fraunces", Georgia, serif;
-  font-style: italic;
-  font-weight: 800;
-  font-size: 1.38rem;
-  letter-spacing: -0.01em;
-  line-height: 1.12;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.4;
 }
 
 .choices {
@@ -566,8 +556,8 @@ a {
 
 .guess-box {
   display: grid;
-  gap: 11px;
-  padding: 16px 0 0;
+  gap: 8px;
+  padding: 14px 0 0;
 }
 
 .guess-label,
@@ -583,14 +573,14 @@ a {
 
 .guess-input {
   width: 100%;
-  min-height: 64px;
+  min-height: 52px;
   border: 0;
   border-bottom: 2px solid var(--ink);
   border-radius: 0;
   background: transparent;
   color: var(--ink);
   font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(1.45rem, 8vw, 2.25rem);
+  font-size: clamp(1.3rem, 6vw, 1.75rem);
   font-style: italic;
   font-weight: 900;
   letter-spacing: -0.03em;
@@ -614,10 +604,10 @@ a {
 .choice {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  min-height: 58px;
-  padding: 12px 13px;
+  min-height: 48px;
+  padding: 10px 12px;
   border: 0;
   background: rgba(18, 18, 18, 0.035);
   color: var(--ink);
@@ -660,14 +650,19 @@ a {
   font-style: italic;
   font-weight: 800;
   letter-spacing: -0.015em;
-  font-size: 1.18rem;
+  font-size: 1rem;
 }
 
 .choice span span,
 .choice__main > span {
   color: var(--muted);
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.68rem;
+  font-size: 0.6rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .choice[data-state="selected"] {
@@ -729,8 +724,8 @@ a {
 
 .slip-action {
   width: 100%;
-  margin-top: 22px;
-  padding: 18px 14px;
+  margin-top: 14px;
+  padding: 12px 14px;
   border: 0;
   background: var(--red);
   color: var(--paper);
@@ -740,7 +735,7 @@ a {
   font-weight: 900;
   letter-spacing: -0.01em;
   text-align: center;
-  font-size: 1.4rem;
+  font-size: 1.15rem;
 }
 
 .slip-action:disabled {
@@ -750,15 +745,15 @@ a {
   cursor: default;
   font-family: "JetBrains Mono", monospace;
   font-style: normal;
-  font-size: 0.68rem;
-  letter-spacing: 0.22em;
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
 .bonus-card,
 .winner-card,
 .results-card {
-  margin-top: 24px;
+  margin-top: 16px;
   padding-top: 0;
   border-top: 0;
 }
