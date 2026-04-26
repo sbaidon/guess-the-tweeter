@@ -897,6 +897,92 @@ a {
   font-size: 0.9rem;
 }
 
+.leaderboard {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  padding: 22px 22px 26px;
+}
+
+.leaderboard h1 {
+  margin: 0 0 18px;
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  font-size: clamp(2rem, 7vw, 2.8rem);
+  line-height: 0.95;
+}
+
+.leaderboard__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.leaderboard__row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.leaderboard__row:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+
+.leaderboard__row[data-you="true"] {
+  color: var(--red);
+}
+
+.leaderboard__row[data-you="true"] .leaderboard__rank,
+.leaderboard__row[data-you="true"] .leaderboard__points,
+.leaderboard__row[data-you="true"] .leaderboard__rounds {
+  color: var(--red);
+}
+
+.leaderboard__rank {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard__tag {
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard__rounds {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard__points {
+  color: var(--ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
 .archive-round__model {
   margin-top: 6px;
   display: inline-flex;

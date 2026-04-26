@@ -11,6 +11,7 @@ import { AppLayout } from "./components/AppLayout.tsrx";
 import { DEFAULT_LANGUAGE, LANGUAGES_BY_ID, isLanguageKey } from "./gameData";
 import { ArchivePage } from "./routes/ArchivePage.tsrx";
 import { HomePage } from "./routes/HomePage.tsrx";
+import { LeaderboardPage } from "./routes/LeaderboardPage.tsrx";
 import { PlayPage } from "./routes/PlayPage.tsrx";
 
 export function useCurrentLanguage() {
@@ -96,12 +97,19 @@ const archiveLanguageRoute = createRoute({
   },
 });
 
+const leaderboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/leaderboard",
+  component: LeaderboardPage,
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   playRoute,
   playLanguageRoute,
   archiveRoute,
   archiveLanguageRoute,
+  leaderboardRoute,
 ]);
 
 export const router = createRouter({

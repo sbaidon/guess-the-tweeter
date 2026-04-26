@@ -5,6 +5,7 @@ export const UI_COPY = {
     nav: {
       play: "Play",
       archive: "Archive",
+      leaderboard: "Leaderboard",
     },
     home: {
       eyebrow: "Hourly parody game",
@@ -24,6 +25,14 @@ export const UI_COPY = {
       emptyDetail: "Wait for the first reveal.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} winners · ${percentage}% hit rate`,
+    },
+    leaderboard: {
+      eyebrow: "Top players",
+      title: "The leaderboard.",
+      error: "Could not load the leaderboard.",
+      emptyTitle: "No players yet.",
+      emptyDetail: "Place a slip with a stake to enter.",
+      rounds: (count) => `${count} settled`,
     },
     game: {
       loading: "Loading",
@@ -103,6 +112,7 @@ export const UI_COPY = {
     nav: {
       play: "Jugar",
       archive: "Archivo",
+      leaderboard: "Ranking",
     },
     home: {
       eyebrow: "Juego de parodia por hora",
@@ -122,6 +132,14 @@ export const UI_COPY = {
       emptyDetail: "Espera la primera revelación.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} ganadores · ${percentage}% de acierto`,
+    },
+    leaderboard: {
+      eyebrow: "Mejores jugadores",
+      title: "El ranking.",
+      error: "No se pudo cargar el ranking.",
+      emptyTitle: "Aún no hay jugadores.",
+      emptyDetail: "Apuesta en una jugada para entrar.",
+      rounds: (count) => `${count} liquidadas`,
     },
     game: {
       loading: "Cargando",
@@ -201,6 +219,7 @@ export const UI_COPY = {
     nav: {
       play: "Jouer",
       archive: "Archives",
+      leaderboard: "Classement",
     },
     home: {
       eyebrow: "Jeu parodique horaire",
@@ -220,6 +239,14 @@ export const UI_COPY = {
       emptyDetail: "Attendez la première révélation.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} gagnants · ${percentage}% de réussite`,
+    },
+    leaderboard: {
+      eyebrow: "Meilleurs joueurs",
+      title: "Le classement.",
+      error: "Impossible de charger le classement.",
+      emptyTitle: "Aucun joueur pour l'instant.",
+      emptyDetail: "Misez sur une manche pour entrer.",
+      rounds: (count) => `${count} réglées`,
     },
     game: {
       loading: "Chargement",
@@ -299,6 +326,7 @@ export const UI_COPY = {
     nav: {
       play: "Jogar",
       archive: "Arquivo",
+      leaderboard: "Ranking",
     },
     home: {
       eyebrow: "Jogo de paródia por hora",
@@ -318,6 +346,14 @@ export const UI_COPY = {
       emptyDetail: "Espere a primeira revelação.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} vencedores · ${percentage}% de acerto`,
+    },
+    leaderboard: {
+      eyebrow: "Melhores jogadores",
+      title: "O ranking.",
+      error: "Não foi possível carregar o ranking.",
+      emptyTitle: "Ainda não há jogadores.",
+      emptyDetail: "Aposte em uma rodada para entrar.",
+      rounds: (count) => `${count} liquidadas`,
     },
     game: {
       loading: "Carregando",
@@ -397,6 +433,7 @@ export const UI_COPY = {
     nav: {
       play: "Spielen",
       archive: "Archiv",
+      leaderboard: "Rangliste",
     },
     home: {
       eyebrow: "Stündliches Parodiespiel",
@@ -416,6 +453,14 @@ export const UI_COPY = {
       emptyDetail: "Warte auf die erste Auflösung.",
       winners: (winnerCount, total, percentage) =>
         `${winnerCount}/${total} Gewinner · ${percentage}% Trefferquote`,
+    },
+    leaderboard: {
+      eyebrow: "Top-Spieler",
+      title: "Die Rangliste.",
+      error: "Rangliste konnte nicht geladen werden.",
+      emptyTitle: "Noch keine Spieler.",
+      emptyDetail: "Setze auf eine Runde, um teilzunehmen.",
+      rounds: (count) => `${count} abgerechnet`,
     },
     game: {
       loading: "Lädt",

@@ -53,6 +53,18 @@ export async function fetchRoundHistory(limit = 12, language = "en", signal) {
   return response.json();
 }
 
+export async function fetchLeaderboard(limit = 50, clientId, signal) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (clientId) params.set("clientId", clientId);
+  const response = await fetch(`/api/leaderboard?${params.toString()}`, { signal });
+
+  if (!response.ok) {
+    throw new Error("Could not load leaderboard.");
+  }
+
+  return response.json();
+}
+
 export async function revealRound(roundId, adminToken) {
   return adminRequest(`/api/admin/rounds/${encodeURIComponent(roundId)}/reveal`, adminToken);
 }

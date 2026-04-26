@@ -453,6 +453,14 @@ const statements = {
   sumOpenStakes: db.prepare<{ total: number }, [string]>(
     "SELECT COALESCE(SUM(stake), 0) AS total FROM submissions WHERE client_id = ? AND settled_at IS NULL",
   ),
+  getTopPlayers: db.prepare<{ identity: string; points: number; settled_count: number }, [number]>(`
+    SELECT p.identity, p.points,
+      (SELECT COUNT(*) FROM submissions s WHERE s.client_id = SUBSTR(p.identity, 6) AND s.settled_at IS NOT NULL) AS settled_count
+    FROM players p
+    WHERE p.identity LIKE 'uuid:%'
+    ORDER BY p.points DESC, p.created_at ASC
+    LIMIT ?
+  `),
 };
 
 const recordSubmission = db.transaction(
@@ -985,6 +993,11 @@ function identityFor(clientId: string): string {
   return `uuid:${clientId}`;
 }
 
+function publicPlayerTag(identity: string): string {
+  const hash = crypto.createHash("sha256").update(identity).digest("hex");
+  return `Player-${hash.slice(0, 4).toUpperCase()}`;
+}
+
 function normalizeHandle(value: string): string {
   return value.replace(/^@/, "").trim().toLowerCase();
 }
@@ -1284,6 +1297,23 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       .map((round) => publicRound(round));
 
     return json(response, 200, { rounds: publicRounds });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/leaderboard") {
+    const requestedLimit = Number(url.searchParams.get("limit") ?? 50);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(100, Math.max(1, Math.floor(requestedLimit)))
+      : 50;
+    const rows = statements.getTopPlayers.all(limit);
+    const clientId = url.searchParams.get("clientId");
+    const players = rows.map((row, index) => ({
+      rank: index + 1,
+      tag: publicPlayerTag(row.identity),
+      points: row.points,
+      rounds: row.settled_count ?? 0,
+      you: clientId ? row.identity === identityFor(clientId) : false,
+    }));
+    return json(response, 200, { players });
   }
 
   const submissionMatch = url.pathname.match(/^\/api\/rounds\/([^/]+)\/submissions$/);
