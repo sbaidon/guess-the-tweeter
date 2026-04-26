@@ -1,0 +1,68 @@
+#cloud-config
+# Bootstrap a fresh Ubuntu 24.04 box for guess-the-tweeter.
+# Pass this as user_data when creating the Hetzner Cloud server.
+# Replace the ADMIN_TOKEN placeholder before submitting.
+
+package_update: true
+packages:
+  - curl
+  - git
+  - unzip
+  - debian-keyring
+  - debian-archive-keyring
+  - apt-transport-https
+  - gpg
+
+write_files:
+  - path: /etc/guess-the-tweeter/guess-the-tweeter.env
+    permissions: '0640'
+    owner: root:root
+    content: |
+      NODE_ENV=production
+      HOST=127.0.0.1
+      PORT=8787
+      DATABASE_PATH=/var/lib/guess-the-tweeter/guess-the-tweeter.sqlite
+      BACKUP_DIR=/var/backups/guess-the-tweeter
+      ADMIN_TOKEN=REPLACE_WITH_LONG_RANDOM_TOKEN
+      TRUST_PROXY=true
+      SUBMISSION_RATE_LIMIT_WINDOW_MS=60000
+      SUBMISSION_RATE_LIMIT_MAX=20
+      ROOM_SNAPSHOT_INTERVAL_MS=2000
+      REQUEST_LOG_SAMPLE_RATE=0
+      MAX_JSON_BODY_BYTES=8192
+      CONTEST_YEARS=10
+
+runcmd:
+  # Caddy
+  - bash -c 'curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg'
+  - bash -c 'curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | tee /etc/apt/sources.list.d/caddy-stable.list'
+  - apt-get update
+  - apt-get install -y caddy
+
+  # Bun installed system-wide so the unprivileged service user can read it
+  - bash -c 'curl -fsSL https://bun.sh/install | bash'
+  - cp /root/.bun/bin/bun /usr/local/bin/bun
+  - ln -sf /usr/local/bin/bun /usr/local/bin/bunx
+  - chmod 0755 /usr/local/bin/bun /usr/local/bin/bunx
+
+  # App user and dirs
+  - useradd --system --create-home --home-dir /opt/guess-the-tweeter --shell /bin/bash --user-group guess
+  - mkdir -p /etc/guess-the-tweeter /var/lib/guess-the-tweeter /var/backups/guess-the-tweeter
+  - chown -R guess:guess /opt/guess-the-tweeter /var/lib/guess-the-tweeter /var/backups/guess-the-tweeter
+  - chgrp guess /etc/guess-the-tweeter/guess-the-tweeter.env
+
+  # Checkout, install, build
+  - sudo -u guess git clone https://github.com/sbaidon/guess-the-tweeter.git /opt/guess-the-tweeter/current
+  - bash -c 'cd /opt/guess-the-tweeter/current && sudo -u guess /usr/local/bin/bun install --frozen-lockfile'
+  - bash -c 'cd /opt/guess-the-tweeter/current && sudo -u guess /usr/local/bin/bun run build'
+
+  # systemd
+  - cp /opt/guess-the-tweeter/current/deploy/systemd/guess-the-tweeter.service /etc/systemd/system/
+  - cp /opt/guess-the-tweeter/current/deploy/systemd/guess-the-tweeter-backup.service /etc/systemd/system/
+  - cp /opt/guess-the-tweeter/current/deploy/systemd/guess-the-tweeter-backup.timer /etc/systemd/system/
+  - systemctl daemon-reload
+  - systemctl enable --now guess-the-tweeter.service
+  - systemctl enable --now guess-the-tweeter-backup.timer
+
+  # Caddy with auto-resolved sslip.io subdomain (e.g. 5-161-105-234.sslip.io)
+  - bash -c 'PUBLIC_IP=$(curl -sf https://ipv4.icanhazip.com) && SSLIP_HOST="${PUBLIC_IP//./-}.sslip.io" && cp /opt/guess-the-tweeter/current/deploy/caddy/Caddyfile /etc/caddy/Caddyfile && sed -i "s/guess-the-tweeter.example.com/$SSLIP_HOST/g" /etc/caddy/Caddyfile && systemctl reload caddy'
