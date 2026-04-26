@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { AuthorAvatar } from "../components/AuthorAvatar.tsrx";
 import { CATEGORY_META, DEFAULT_LANGUAGE, LANGUAGES_BY_ID } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
 import { fetchRoundHistory } from "../liveApi";
@@ -55,9 +56,15 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
               {copy.game.fictionNotice}
             </div>
             <div class="archive-round__answer">
-              <strong>{round.answer.author.handle}</strong>
-              <span>{round.answer.author.name}</span>
+              <AuthorAvatar author={round.answer.author} size="sm" />
+              <div class="archive-round__answer-text">
+                <strong>{round.answer.author.handle}</strong>
+                <span>{round.answer.author.name}</span>
+              </div>
             </div>
+            if (round.answer.model) {
+              <span class="archive-round__model">{`Model · ${round.answer.model.name}`}</span>
+            }
             <div class="archive-round__winners">
               {copy.archive.winners(
                 round.results.winnerCount,

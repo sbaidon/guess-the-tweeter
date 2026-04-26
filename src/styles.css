@@ -458,7 +458,7 @@ a {
   margin-bottom: 10px;
 }
 
-.post-card__avatar {
+.author-avatar {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
@@ -473,14 +473,20 @@ a {
   overflow: hidden;
 }
 
-.post-card__avatar img {
+.author-avatar--sm {
+  width: 26px;
+  height: 26px;
+  font-size: 0.85rem;
+}
+
+.author-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.post-card__avatar.is-hidden {
+.author-avatar.is-hidden {
   color: transparent;
   background: repeating-linear-gradient(45deg, var(--ink) 0 4px, transparent 4px 8px);
 }
@@ -863,14 +869,21 @@ a {
 }
 
 .archive-round__answer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.archive-round__answer-text {
   display: grid;
-  gap: 5px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .archive-round__answer strong {
   color: var(--red);
   font-family: "Fraunces", Georgia, serif;
-  font-size: 1.7rem;
+  font-size: 1.4rem;
   font-style: italic;
   font-weight: 900;
   letter-spacing: -0.03em;
@@ -880,7 +893,22 @@ a {
 .archive-round__answer span {
   color: var(--ink-soft);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
+  font-size: 0.9rem;
+}
+
+.archive-round__model {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .archive-round__winners {

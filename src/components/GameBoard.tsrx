@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CATEGORY_META } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
 import { createRoundSocket, fetchCurrentRound, getClientId, submitRoundPick } from "../liveApi";
+import { AuthorAvatar } from "./AuthorAvatar.tsrx";
 
 function formatClock(value, language) {
   return new Intl.DateTimeFormat(getLocale(language), {
@@ -168,25 +169,6 @@ function pickHandle(pick) {
 
 function pickAuthorId(pick) {
   return pick && pick.kind === "matched" ? pick.authorId : null;
-}
-
-function avatarUrl(handle) {
-  const stripped = handle.replace(/^@/, "").trim();
-  return stripped ? `https://unavatar.io/x/${encodeURIComponent(stripped)}` : null;
-}
-
-component AuthorAvatar({ author, hidden }) {
-  const [failed, setFailed] = useState(false);
-  const url = author && !hidden ? avatarUrl(author.handle) : null;
-  const showImage = url && !failed;
-
-  <div class={`post-card__avatar ${hidden ? "is-hidden" : ""}`}>
-    if (showImage) {
-      <img alt="" loading="lazy" src={url} onError={() => setFailed(true)} />
-    } else if (!hidden) {
-      <span>{author.name.charAt(0)}</span>
-    }
-  </div>
 }
 
 export component GameBoard({ category, language = "en" }) {
