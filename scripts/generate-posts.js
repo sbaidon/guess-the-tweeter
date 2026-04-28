@@ -170,7 +170,16 @@ async function generateText(author) {
 
   const raw = await response.json();
   const content = raw.choices?.[0]?.message?.content ?? "";
-  const parsed = JSON.parse(content);
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    const match = content.match(/\{[\s\S]*\}/);
+    if (!match) {
+      throw new Error(`No JSON object in response: ${content.slice(0, 200)}`);
+    }
+    parsed = JSON.parse(match[0]);
+  }
   const text = String(parsed.text ?? "").trim();
 
   if (text.length < 20) {
