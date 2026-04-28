@@ -983,6 +983,90 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.identity-card {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  padding: 22px 22px 26px;
+}
+
+.identity-card h1 {
+  margin: 0 0 14px;
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  font-size: clamp(2rem, 7vw, 2.6rem);
+  line-height: 0.95;
+}
+
+.identity-card__intro {
+  margin: 0 0 18px;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.identity-summary {
+  margin: 14px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--rule);
+}
+
+.identity-summary__id {
+  display: block;
+  margin-top: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.identity-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.identity-import {
+  margin-top: 4px;
+}
+
+.identity-import summary {
+  cursor: pointer;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 0;
+}
+
+.identity-import__field,
+.identity-recovery {
+  width: 100%;
+  min-height: 96px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  background: rgba(18, 18, 18, 0.03);
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  resize: vertical;
+  word-break: break-all;
+}
+
+.identity-recovery__warn {
+  margin: 6px 0 0;
+  color: var(--red);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
 .archive-round__model {
   margin-top: 6px;
   display: inline-flex;

@@ -15,8 +15,9 @@ export function getClientId() {
   return nextId;
 }
 
-export async function fetchCurrentRound(category, clientId, language = "en", signal) {
+export async function fetchCurrentRound(category, clientId, language = "en", signal, identity) {
   const params = new URLSearchParams({ category, clientId, language });
+  if (identity) params.set("identity", identity);
   const response = await fetch(`/api/rounds/current?${params.toString()}`, { signal });
 
   if (!response.ok) {
@@ -42,6 +43,19 @@ export async function submitRoundPick(roundId, payload) {
   return response.json();
 }
 
+export async function claimIdentity({ pubkey, signature, nonce, timestamp, fromClientId }) {
+  const response = await fetch("/api/players/claim", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ pubkey, signature, nonce, timestamp, fromClientId }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Claim failed: ${detail || response.status}`);
+  }
+  return response.json();
+}
+
 export async function fetchRoundHistory(limit = 12, language = "en", signal) {
   const params = new URLSearchParams({ limit: String(limit), language });
   const response = await fetch(`/api/rounds/history?${params.toString()}`, { signal });
@@ -53,9 +67,10 @@ export async function fetchRoundHistory(limit = 12, language = "en", signal) {
   return response.json();
 }
 
-export async function fetchLeaderboard(limit = 50, clientId, signal) {
+export async function fetchLeaderboard(limit = 50, clientId, signal, identity) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (clientId) params.set("clientId", clientId);
+  if (identity) params.set("identity", identity);
   const response = await fetch(`/api/leaderboard?${params.toString()}`, { signal });
 
   if (!response.ok) {

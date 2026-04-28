@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getCopy } from "../i18n";
+import { getIdentity } from "../identity";
 import { fetchLeaderboard, getClientId } from "../liveApi";
 import { useCurrentLanguage } from "../router";
 
@@ -8,9 +9,10 @@ export component LeaderboardPage() {
   const [clientId] = useState(getClientId);
   const language = useCurrentLanguage();
   const copy = getCopy(language);
+  const { data: identity = null } = useQuery({ queryKey: ["identity"], queryFn: getIdentity });
   const { data, isError } = useQuery({
-    queryKey: ["leaderboard", clientId],
-    queryFn: ({ signal }) => fetchLeaderboard(50, clientId, signal),
+    queryKey: ["leaderboard", clientId, identity],
+    queryFn: ({ signal }) => fetchLeaderboard(50, clientId, signal, identity),
     refetchInterval: 30_000,
   });
   const players = data?.players ?? [];

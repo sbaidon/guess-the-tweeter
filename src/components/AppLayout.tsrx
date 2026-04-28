@@ -6,6 +6,7 @@ import { useCurrentLanguage } from "../router";
 function languageLinkProps(pathname, langId) {
   if (pathname === "/") return { to: "/", search: { lang: langId } };
   if (pathname === "/leaderboard") return { to: "/leaderboard", search: { lang: langId } };
+  if (pathname === "/identity") return { to: "/identity", search: { lang: langId } };
   if (pathname.startsWith("/archive")) return { to: "/archive/$language", params: { language: langId } };
   return { to: "/play/$language", params: { language: langId } };
 }
@@ -48,6 +49,14 @@ export component AppLayout({ children }) {
             to="/leaderboard"
           >
             {copy.nav.leaderboard}
+          </Link>
+          <Link
+            activeProps={{ "data-active": "true" }}
+            inactiveProps={{ "data-active": "false" }}
+            className="topnav__link"
+            to="/identity"
+          >
+            {copy.nav.identity}
           </Link>
         </nav>
       </div>

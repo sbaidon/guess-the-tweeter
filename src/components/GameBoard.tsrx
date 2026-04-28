@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CATEGORY_META } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
+import { getIdentity, signSubmit } from "../identity";
 import { createRoundSocket, fetchCurrentRound, getClientId, submitRoundPick } from "../liveApi";
 import { AuthorAvatar } from "./AuthorAvatar.tsrx";
 
@@ -177,15 +178,23 @@ export component GameBoard({ category, language = "en" }) {
   const [now, setNow] = useState(Date.now());
   const queryClient = useQueryClient();
   const copy = getCopy(language);
-  const queryKey = ["round", category, language, clientId];
+  const { data: identity = null } = useQuery({ queryKey: ["identity"], queryFn: getIdentity });
+  const queryKey = ["round", category, language, clientId, identity];
 
   const { data: round = null, isError: roundQueryError, refetch: refetchRound } = useQuery({
     queryKey,
-    queryFn: ({ signal }) => fetchCurrentRound(category, clientId, language, signal),
+    queryFn: ({ signal }) => fetchCurrentRound(category, clientId, language, signal, identity),
   });
 
   const submitMutation = useMutation({
-    mutationFn: (payload) => submitRoundPick(round.id, { clientId, ...payload }),
+    mutationFn: async (payload) => {
+      const body = { clientId, ...payload };
+      if (identity) {
+        const sig = await signSubmit(round.id, clientId);
+        Object.assign(body, sig);
+      }
+      return submitRoundPick(round.id, body);
+    },
     onSuccess: (nextRound, payload) => {
       queryClient.setQueryData(queryKey, nextRound);
       if (payload.authorGuess) setHandleGuess("");
@@ -264,7 +273,7 @@ export component GameBoard({ category, language = "en" }) {
     socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);
       if (message.type === "round:snapshot" && message.round) {
-        queryClient.setQueryData(["round", category, language, clientId], (current) =>
+        queryClient.setQueryData(["round", category, language, clientId, identity], (current) =>
           mergeRoundSnapshot(current, message.round),
         );
       } else if (message.type === "round:update") {
@@ -272,7 +281,7 @@ export component GameBoard({ category, language = "en" }) {
       }
     });
     return () => socket.close();
-  }, [category, clientId, language, queryClient, refetchRound]);
+  }, [category, clientId, language, identity, queryClient, refetchRound]);
 
   function submitPick(payload) {
     if (!round || pending || !isOpen) return;

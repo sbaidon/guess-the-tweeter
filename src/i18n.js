@@ -6,6 +6,7 @@ export const UI_COPY = {
       play: "Play",
       archive: "Archive",
       leaderboard: "Leaderboard",
+      identity: "Identity",
     },
     home: {
       eyebrow: "Hourly parody game",
@@ -33,6 +34,25 @@ export const UI_COPY = {
       emptyTitle: "No players yet.",
       emptyDetail: "Place a slip with a stake to enter.",
       rounds: (count) => `${count} settled`,
+    },
+    identity: {
+      eyebrow: "Your identity",
+      title: "Claim it.",
+      intro:
+        "Without a claimed identity your balance lives only in this browser. Claim once, export the recovery key, and you can play from any device with the same balance.",
+      youAre: "You are",
+      claim: "Claim this device",
+      claimed: "Identity claimed. Balance is now bound to your key.",
+      showRecovery: "Show recovery key",
+      recoveryWarn:
+        "Anyone with this key is you. Copy it once, store it offline, never paste it anywhere public.",
+      signOut: "Forget on this device",
+      signedOut: "Forgotten. Anonymous balance is back.",
+      importHeading: "Have a recovery key from another device?",
+      importPlaceholder: "Paste the recovery key here…",
+      importAction: "Import key",
+      imported: "Key imported. You're back.",
+      error: "Something went wrong.",
     },
     game: {
       loading: "Loading",
@@ -113,6 +133,7 @@ export const UI_COPY = {
       play: "Jugar",
       archive: "Archivo",
       leaderboard: "Ranking",
+      identity: "Identidad",
     },
     home: {
       eyebrow: "Juego de parodia por hora",
@@ -220,6 +241,7 @@ export const UI_COPY = {
       play: "Jouer",
       archive: "Archives",
       leaderboard: "Classement",
+      identity: "Identité",
     },
     home: {
       eyebrow: "Jeu parodique horaire",
@@ -327,6 +349,7 @@ export const UI_COPY = {
       play: "Jogar",
       archive: "Arquivo",
       leaderboard: "Ranking",
+      identity: "Identidade",
     },
     home: {
       eyebrow: "Jogo de paródia por hora",
@@ -434,6 +457,7 @@ export const UI_COPY = {
       play: "Spielen",
       archive: "Archiv",
       leaderboard: "Rangliste",
+      identity: "Identität",
     },
     home: {
       eyebrow: "Stündliches Parodiespiel",
@@ -536,8 +560,36 @@ export const UI_COPY = {
   },
 };
 
+function deepMerge(base, override) {
+  if (!override) return base;
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const baseValue = base[key];
+    const overrideValue = override[key];
+    if (
+      baseValue &&
+      overrideValue &&
+      typeof baseValue === "object" &&
+      typeof overrideValue === "object" &&
+      !Array.isArray(baseValue) &&
+      typeof baseValue !== "function"
+    ) {
+      result[key] = deepMerge(baseValue, overrideValue);
+    } else {
+      result[key] = overrideValue;
+    }
+  }
+  return result;
+}
+
+const COPY_CACHE = new Map();
+
 export function getCopy(language) {
-  return UI_COPY[language] ?? UI_COPY.en;
+  if (!UI_COPY[language] || language === "en") return UI_COPY.en;
+  if (COPY_CACHE.has(language)) return COPY_CACHE.get(language);
+  const merged = deepMerge(UI_COPY.en, UI_COPY[language]);
+  COPY_CACHE.set(language, merged);
+  return merged;
 }
 
 export function getLocale(language) {

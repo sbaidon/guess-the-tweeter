@@ -11,6 +11,7 @@ import { AppLayout } from "./components/AppLayout.tsrx";
 import { DEFAULT_LANGUAGE, LANGUAGES_BY_ID, isLanguageKey } from "./gameData";
 import { ArchivePage } from "./routes/ArchivePage.tsrx";
 import { HomePage } from "./routes/HomePage.tsrx";
+import { IdentityPage } from "./routes/IdentityPage.tsrx";
 import { LeaderboardPage } from "./routes/LeaderboardPage.tsrx";
 import { PlayPage } from "./routes/PlayPage.tsrx";
 
@@ -103,6 +104,12 @@ const leaderboardRoute = createRoute({
   component: LeaderboardPage,
 });
 
+const identityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/identity",
+  component: IdentityPage,
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   playRoute,
@@ -110,6 +117,7 @@ const routeTree = rootRoute.addChildren([
   archiveRoute,
   archiveLanguageRoute,
   leaderboardRoute,
+  identityRoute,
 ]);
 
 export const router = createRouter({
