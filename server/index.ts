@@ -240,42 +240,42 @@ const defaultLanguage: LanguageKey = DEFAULT_LANGUAGE;
 const playableCategories = new Set(CATEGORY_ORDER.filter((category) => category !== "all"));
 const openRouterModelOptions: Model[] = [
   {
-    id: "openai/gpt-5.4-mini-20260317",
-    name: "GPT-5.4 Mini",
-    blurb: "Fast, polished, and usually very obedient about structure.",
+    id: "anthropic/claude-sonnet-4.6",
+    name: "Claude Sonnet 4.6",
+    blurb: "Careful cadence, restrained punchlines, suspiciously tidy rhythm.",
   },
   {
-    id: "deepseek/deepseek-v3.2-20251201",
-    name: "DeepSeek V3.2",
-    blurb: "Direct, economical, and fond of crisp argument shapes.",
+    id: "anthropic/claude-opus-4.7",
+    name: "Claude Opus 4.7",
+    blurb: "Long-form polish, layered framing, deliberate phrasing.",
   },
   {
-    id: "x-ai/grok-4.1-fast",
-    name: "Grok 4.1 Fast",
-    blurb: "Punchy, online, and more willing to swing at the bit.",
+    id: "openai/gpt-5.4",
+    name: "GPT-5.4",
+    blurb: "Fast, polished, and usually obedient about structure.",
   },
   {
-    id: "qwen/qwen3.6-plus-04-02",
+    id: "google/gemini-3.1-pro-preview",
+    name: "Gemini 3.1 Pro",
+    blurb: "Crisp logical edges with a faintly clinical confidence.",
+  },
+  {
+    id: "x-ai/grok-4.20",
+    name: "Grok 4.20",
+    blurb: "Punchy, online, willing to swing at the bit.",
+  },
+  {
+    id: "qwen/qwen3.6-plus",
     name: "Qwen 3.6 Plus",
     blurb: "Steady multilingual output with a practical, slightly formal edge.",
   },
   {
-    id: "google/gemini-3-flash-preview-20251217",
-    name: "Gemini 3 Flash",
-    blurb: "Quick, fluent, and happy to make the framing extra tidy.",
+    id: "deepseek/deepseek-v3.1-terminus",
+    name: "DeepSeek V3.1",
+    blurb: "Direct, economical, fond of crisp argument shapes.",
   },
   {
-    id: "anthropic/claude-4.5-haiku-20251001",
-    name: "Claude 4.5 Haiku",
-    blurb: "Careful cadence, clean transitions, and restrained punchlines.",
-  },
-  {
-    id: "mistralai/mistral-large-2512",
-    name: "Mistral Large",
-    blurb: "European polish with a tendency toward declarative confidence.",
-  },
-  {
-    id: "meta-llama/llama-4-maverick-17b-128e-instruct",
+    id: "meta-llama/llama-4-maverick",
     name: "Llama 4 Maverick",
     blurb: "Open-weight swagger with roomy phrasing and broad confidence.",
   },
