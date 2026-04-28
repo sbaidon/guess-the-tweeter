@@ -472,6 +472,15 @@ const statements = {
     ORDER BY p.points DESC, p.created_at ASC
     LIMIT ?
   `),
+  getTopClaimedPlayers: db.prepare<{ identity: string; points: number; settled_count: number }, [number]>(`
+    SELECT p.identity, p.points,
+      (SELECT COUNT(*) FROM submissions s
+        WHERE s.settled_at IS NOT NULL AND s.identity = p.identity) AS settled_count
+    FROM players p
+    WHERE p.identity LIKE 'pk:%'
+    ORDER BY p.points DESC, p.created_at ASC
+    LIMIT ?
+  `),
 };
 
 const recordSubmission = db.transaction(
@@ -1442,7 +1451,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(100, Math.max(1, Math.floor(requestedLimit)))
       : 50;
-    const rows = statements.getTopPlayers.all(limit);
+    const scope = url.searchParams.get("scope") === "claimed" ? "claimed" : "all";
+    const rows =
+      scope === "claimed"
+        ? statements.getTopClaimedPlayers.all(limit)
+        : statements.getTopPlayers.all(limit);
     const clientId = url.searchParams.get("clientId");
     const identityParam = url.searchParams.get("identity");
     const yourIdentity =
@@ -1456,9 +1469,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
       tag: publicPlayerTag(row.identity),
       points: row.points,
       rounds: row.settled_count ?? 0,
+      claimed: row.identity.startsWith("pk:"),
       you: yourIdentity ? row.identity === yourIdentity : false,
     }));
-    return json(response, 200, { players });
+    return json(response, 200, { scope, players });
   }
 
   const submissionMatch = url.pathname.match(/^\/api\/rounds\/([^/]+)\/submissions$/);

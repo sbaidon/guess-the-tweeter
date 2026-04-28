@@ -33,7 +33,10 @@ export const UI_COPY = {
       error: "Could not load the leaderboard.",
       emptyTitle: "No players yet.",
       emptyDetail: "Place a slip with a stake to enter.",
+      emptyClaimed: "Nobody has claimed an identity yet. Claim one to be the first.",
       rounds: (count) => `${count} settled`,
+      scopeAll: "All",
+      scopeClaimed: "Claimed",
     },
     identity: {
       eyebrow: "Your identity",

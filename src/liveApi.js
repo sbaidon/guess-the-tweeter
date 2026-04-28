@@ -67,8 +67,8 @@ export async function fetchRoundHistory(limit = 12, language = "en", signal) {
   return response.json();
 }
 
-export async function fetchLeaderboard(limit = 50, clientId, signal, identity) {
-  const params = new URLSearchParams({ limit: String(limit) });
+export async function fetchLeaderboard({ limit = 50, clientId, identity, scope = "all", signal } = {}) {
+  const params = new URLSearchParams({ limit: String(limit), scope });
   if (clientId) params.set("clientId", clientId);
   if (identity) params.set("identity", identity);
   const response = await fetch(`/api/leaderboard?${params.toString()}`, { signal });

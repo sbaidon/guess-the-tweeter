@@ -905,13 +905,44 @@ a {
 }
 
 .leaderboard h1 {
-  margin: 0 0 18px;
+  margin: 0 0 14px;
   font-family: "Fraunces", Georgia, serif;
   font-style: italic;
   font-weight: 900;
   letter-spacing: -0.04em;
   font-size: clamp(2rem, 7vw, 2.8rem);
   line-height: 0.95;
+}
+
+.leaderboard__scope {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 18px;
+}
+
+.leaderboard__scope-tab {
+  padding: 6px 12px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.leaderboard__scope-tab[data-active="true"] {
+  border-color: var(--red);
+  background: var(--red);
+  color: var(--paper);
+}
+
+.leaderboard__claimed-mark {
+  margin-left: 6px;
+  color: var(--red);
 }
 
 .leaderboard__list {

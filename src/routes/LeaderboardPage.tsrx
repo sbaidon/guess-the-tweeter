@@ -7,12 +7,13 @@ import { useCurrentLanguage } from "../router";
 
 export component LeaderboardPage() {
   const [clientId] = useState(getClientId);
+  const [scope, setScope] = useState("all");
   const language = useCurrentLanguage();
   const copy = getCopy(language);
   const { data: identity = null } = useQuery({ queryKey: ["identity"], queryFn: getIdentity });
   const { data, isError } = useQuery({
-    queryKey: ["leaderboard", clientId, identity],
-    queryFn: ({ signal }) => fetchLeaderboard(50, clientId, signal, identity),
+    queryKey: ["leaderboard", scope, clientId, identity],
+    queryFn: ({ signal }) => fetchLeaderboard({ scope, clientId, identity, signal }),
     refetchInterval: 30_000,
   });
   const players = data?.players ?? [];
@@ -21,6 +22,25 @@ export component LeaderboardPage() {
     <p class="eyebrow">{copy.leaderboard.eyebrow}</p>
     <h1>{copy.leaderboard.title}</h1>
 
+    <div class="leaderboard__scope" role="tablist">
+      <button
+        class="leaderboard__scope-tab"
+        data-active={scope === "all" ? "true" : "false"}
+        type="button"
+        onClick={() => setScope("all")}
+      >
+        {copy.leaderboard.scopeAll}
+      </button>
+      <button
+        class="leaderboard__scope-tab"
+        data-active={scope === "claimed" ? "true" : "false"}
+        type="button"
+        onClick={() => setScope("claimed")}
+      >
+        {copy.leaderboard.scopeClaimed}
+      </button>
+    </div>
+
     if (isError) {
       <div class="notice notice--bad">{copy.leaderboard.error}</div>
     }
@@ -28,7 +48,9 @@ export component LeaderboardPage() {
     if (!isError && players.length === 0) {
       <div class="notice">
         <strong>{copy.leaderboard.emptyTitle}</strong>
-        <span>{copy.leaderboard.emptyDetail}</span>
+        <span>
+          {scope === "claimed" ? copy.leaderboard.emptyClaimed : copy.leaderboard.emptyDetail}
+        </span>
       </div>
     }
 
@@ -39,9 +61,15 @@ export component LeaderboardPage() {
             key={player.rank}
             class="leaderboard__row"
             data-you={player.you ? "true" : "false"}
+            data-claimed={player.claimed ? "true" : "false"}
           >
             <span class="leaderboard__rank">{`#${player.rank}`}</span>
-            <span class="leaderboard__tag">{player.tag}</span>
+            <span class="leaderboard__tag">
+              {player.tag}
+              if (player.claimed) {
+                <span class="leaderboard__claimed-mark" aria-label="claimed">{"·"}</span>
+              }
+            </span>
             <span class="leaderboard__rounds">{copy.leaderboard.rounds(player.rounds)}</span>
             <strong class="leaderboard__points">{player.points}</strong>
           </li>
