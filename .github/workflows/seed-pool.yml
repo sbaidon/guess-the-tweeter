@@ -19,6 +19,10 @@ on:
         description: "Drop existing codex-procedural rows (and rounds that pin them) before generating"
         required: false
         default: "true"
+      models:
+        description: "Optional comma-separated subset of OpenRouter slugs (defaults to the full pool in generate-pool.js)"
+        required: false
+        default: ""
 
 concurrency:
   group: seed-pool-prod
@@ -27,12 +31,13 @@ concurrency:
 jobs:
   seed:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
     env:
       PER_COMBO: ${{ inputs.per_combo }}
       CATEGORIES: ${{ inputs.categories }}
       LANGUAGES: ${{ inputs.languages }}
       PURGE: ${{ inputs.purge_codex_procedural }}
+      MODELS: ${{ inputs.models }}
     steps:
       - name: Validate inputs
         run: |
@@ -42,6 +47,7 @@ jobs:
           [[ "$CATEGORIES" =~ ^[a-z,]+$ ]] || { echo "categories must be lowercase a-z and commas"; exit 1; }
           [[ "$LANGUAGES" =~ ^[a-z,]+$ ]] || { echo "languages must be lowercase a-z and commas"; exit 1; }
           [[ "$PURGE" == "true" || "$PURGE" == "false" ]] || { echo "purge must be true or false"; exit 1; }
+          [[ -z "$MODELS" || "$MODELS" =~ ^[a-zA-Z0-9._/,-]+$ ]] || { echo "models must contain only [a-zA-Z0-9._/,-]"; exit 1; }
 
       - name: Resolve runner IP
         id: ip
@@ -78,8 +84,8 @@ jobs:
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           port: 22
-          command_timeout: 50m
-          envs: OPENROUTER_API_KEY,PER_COMBO,CATEGORIES,LANGUAGES,PURGE
+          command_timeout: 170m
+          envs: OPENROUTER_API_KEY,PER_COMBO,CATEGORIES,LANGUAGES,PURGE,MODELS
           script: |
             set -e
             cd /opt/guess-the-tweeter/current
@@ -103,14 +109,20 @@ jobs:
               '
             fi
 
+            POOL_ARGS=(
+              --per="$PER_COMBO"
+              --categories="$CATEGORIES"
+              --languages="$LANGUAGES"
+            )
+            if [ -n "$MODELS" ]; then
+              POOL_ARGS+=(--models="$MODELS")
+            fi
+
             sudo -u guess \
               AI_API_KEY="$OPENROUTER_API_KEY" \
               AI_BASE_URL="https://openrouter.ai/api/v1" \
               DATABASE_PATH="$DB_PATH" \
-              /usr/local/bin/bun scripts/generate-pool.js \
-                --per="$PER_COMBO" \
-                --categories="$CATEGORIES" \
-                --languages="$LANGUAGES"
+              /usr/local/bin/bun scripts/generate-pool.js "${POOL_ARGS[@]}"
 
             sudo -u guess DATABASE_PATH="$DB_PATH" /usr/local/bin/bun -e '
               import { Database } from "bun:sqlite";
