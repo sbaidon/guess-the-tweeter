@@ -159,7 +159,10 @@ async function generateText(author) {
       messages: buildPrompt(author),
       response_format: { type: "json_object" },
       temperature: 0.95,
-      max_tokens: 140,
+      // Some OpenRouter models (e.g. google/gemini-3.1-pro-preview) force a
+      // reasoning step that eats hundreds of tokens before the content lands,
+      // so give every call enough headroom to fit reasoning + the short JSON.
+      max_tokens: 2000,
     }),
   });
 
@@ -180,7 +183,10 @@ async function generateText(author) {
     }
     parsed = JSON.parse(match[0]);
   }
-  const text = String(parsed.text ?? "").trim();
+  // DeepSeek occasionally returns `[{"text": "..."}]` even with response_format
+  // json_object, so unwrap a single-element array transparently.
+  const root = Array.isArray(parsed) ? parsed[0] ?? {} : parsed;
+  const text = String(root.text ?? "").trim();
 
   if (text.length < 20) {
     throw new Error(`Generated text was too short: ${content}`);

@@ -1,0 +1,144 @@
+name: Seed AI post pool
+
+on:
+  workflow_dispatch:
+    inputs:
+      per_combo:
+        description: "Posts per (model x category x language) combo"
+        required: false
+        default: "2"
+      categories:
+        description: "Comma-separated categories"
+        required: false
+        default: "tech,politics,sports,celebrities"
+      languages:
+        description: "Comma-separated language IDs"
+        required: false
+        default: "en,es,fr,pt,de"
+      purge_codex_procedural:
+        description: "Drop existing codex-procedural rows (and rounds that pin them) before generating"
+        required: false
+        default: "true"
+
+concurrency:
+  group: seed-pool-prod
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PER_COMBO: ${{ inputs.per_combo }}
+      CATEGORIES: ${{ inputs.categories }}
+      LANGUAGES: ${{ inputs.languages }}
+      PURGE: ${{ inputs.purge_codex_procedural }}
+    steps:
+      - name: Validate inputs
+        run: |
+          set -eu
+          # Tight whitelist: prevent shell metachars from reaching prod.
+          [[ "$PER_COMBO" =~ ^[0-9]+$ ]] || { echo "per_combo must be a positive integer"; exit 1; }
+          [[ "$CATEGORIES" =~ ^[a-z,]+$ ]] || { echo "categories must be lowercase a-z and commas"; exit 1; }
+          [[ "$LANGUAGES" =~ ^[a-z,]+$ ]] || { echo "languages must be lowercase a-z and commas"; exit 1; }
+          [[ "$PURGE" == "true" || "$PURGE" == "false" ]] || { echo "purge must be true or false"; exit 1; }
+
+      - name: Resolve runner IP
+        id: ip
+        run: echo "ip=$(curl -fsS https://ipv4.icanhazip.com)" >> "$GITHUB_OUTPUT"
+
+      - name: Allow runner IP on Hetzner firewall
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          FIREWALL_ID: ${{ secrets.HCLOUD_FIREWALL_ID }}
+          ADMIN_SSH_CIDR: ${{ secrets.ADMIN_SSH_CIDR }}
+          RUNNER_IP: ${{ steps.ip.outputs.ip }}
+        run: |
+          set -eu
+          jq -n \
+            --arg admin "$ADMIN_SSH_CIDR" \
+            --arg runner "${RUNNER_IP}/32" \
+            '{rules: [
+               {description: "ssh-admin",  direction: "in", port: "22",  protocol: "tcp", source_ips: [$admin, $runner]},
+               {description: "http",       direction: "in", port: "80",  protocol: "tcp", source_ips: ["0.0.0.0/0", "::/0"]},
+               {description: "https",      direction: "in", port: "443", protocol: "tcp", source_ips: ["0.0.0.0/0", "::/0"]}
+             ]}' > /tmp/rules.json
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $HCLOUD_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.hetzner.cloud/v1/firewalls/${FIREWALL_ID}/actions/set_rules" \
+            --data-binary @/tmp/rules.json > /dev/null
+
+      - name: Run pool generation on prod
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: 22
+          command_timeout: 50m
+          envs: OPENROUTER_API_KEY,PER_COMBO,CATEGORIES,LANGUAGES,PURGE
+          script: |
+            set -e
+            cd /opt/guess-the-tweeter/current
+            sudo -u guess git pull --ff-only
+
+            DB_PATH=$(sudo awk -F= '/^DATABASE_PATH=/{print $2}' /etc/guess-the-tweeter/guess-the-tweeter.env)
+            : "${DB_PATH:?DATABASE_PATH not set in /etc/guess-the-tweeter/guess-the-tweeter.env}"
+
+            if [ "$PURGE" = "true" ]; then
+              sudo -u guess DATABASE_PATH="$DB_PATH" /usr/local/bin/bun -e '
+                import { Database } from "bun:sqlite";
+                const db = new Database(process.env.DATABASE_PATH);
+                db.exec("PRAGMA journal_mode = WAL");
+                const tx = db.transaction(() => {
+                  db.prepare(`DELETE FROM rounds WHERE post_id IN (SELECT id FROM generated_posts WHERE source_model = ?)`).run("codex-procedural");
+                  const r = db.prepare("DELETE FROM generated_posts WHERE source_model = ?").run("codex-procedural");
+                  console.log("purged generated_posts:", r.changes);
+                });
+                tx();
+                db.close();
+              '
+            fi
+
+            sudo -u guess \
+              AI_API_KEY="$OPENROUTER_API_KEY" \
+              AI_BASE_URL="https://openrouter.ai/api/v1" \
+              DATABASE_PATH="$DB_PATH" \
+              /usr/local/bin/bun scripts/generate-pool.js \
+                --per="$PER_COMBO" \
+                --categories="$CATEGORIES" \
+                --languages="$LANGUAGES"
+
+            sudo -u guess DATABASE_PATH="$DB_PATH" /usr/local/bin/bun -e '
+              import { Database } from "bun:sqlite";
+              const db = new Database(process.env.DATABASE_PATH, { readonly: true });
+              console.log("generated_posts by source_model:");
+              for (const row of db.prepare("SELECT source_model, COUNT(*) AS c FROM generated_posts GROUP BY source_model ORDER BY c DESC").all()) {
+                console.log(" ", row.source_model, row.c);
+              }
+              db.close();
+            '
+
+      - name: Restore firewall to admin-only
+        if: always()
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          FIREWALL_ID: ${{ secrets.HCLOUD_FIREWALL_ID }}
+          ADMIN_SSH_CIDR: ${{ secrets.ADMIN_SSH_CIDR }}
+        run: |
+          set -eu
+          jq -n \
+            --arg admin "$ADMIN_SSH_CIDR" \
+            '{rules: [
+               {description: "ssh-admin", direction: "in", port: "22",  protocol: "tcp", source_ips: [$admin]},
+               {description: "http",      direction: "in", port: "80",  protocol: "tcp", source_ips: ["0.0.0.0/0", "::/0"]},
+               {description: "https",     direction: "in", port: "443", protocol: "tcp", source_ips: ["0.0.0.0/0", "::/0"]}
+             ]}' > /tmp/rules.json
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $HCLOUD_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.hetzner.cloud/v1/firewalls/${FIREWALL_ID}/actions/set_rules" \
+            --data-binary @/tmp/rules.json > /dev/null

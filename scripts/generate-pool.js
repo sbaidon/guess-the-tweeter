@@ -3,7 +3,7 @@ import path from "node:path";
 
 const rootDir = path.resolve(import.meta.dir, "..");
 
-const MODELS = [
+const ALL_MODELS = [
   "anthropic/claude-sonnet-4.6",
   "anthropic/claude-opus-4.7",
   "openai/gpt-5.4",
@@ -21,6 +21,8 @@ const args = new Map(
   }),
 );
 
+const requestedModels = args.get("models")?.split(",").filter(Boolean);
+const MODELS = requestedModels?.length ? requestedModels : ALL_MODELS;
 const categories = (args.get("categories") ?? "tech,politics,sports,celebrities").split(",");
 const languages = (args.get("languages") ?? "en,es,fr,pt,de").split(",");
 const perCombo = Number(args.get("per") ?? 2);
