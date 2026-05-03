@@ -15,13 +15,52 @@ import { IdentityPage } from "./routes/IdentityPage.tsrx";
 import { LeaderboardPage } from "./routes/LeaderboardPage.tsrx";
 import { PlayPage } from "./routes/PlayPage.tsrx";
 
+const LANGUAGE_STORAGE_KEY = "guess-the-tweeter-language";
+
+function readStoredLanguage() {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    return isLanguageKey(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredLanguage(language) {
+  if (typeof window === "undefined") return;
+  try {
+    if (isLanguageKey(language)) {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    }
+  } catch {
+    // Storage may be blocked (private mode, quota); fail silently —
+    // language still works for the rest of this session via the URL.
+  }
+}
+
 export function useCurrentLanguage() {
   return useRouterState({
     select: (state) => {
+      // 1. URL path param wins (`/play/:lang`, `/archive/:lang`) so deep
+      //    links honor exactly the language the URL says.
       const [, , pathLanguage] = state.location.pathname.split("/");
-      if (LANGUAGES_BY_ID.has(pathLanguage)) return pathLanguage;
+      if (LANGUAGES_BY_ID.has(pathLanguage)) {
+        writeStoredLanguage(pathLanguage);
+        return pathLanguage;
+      }
+      // 2. Search param next (`?lang=`) for routes without a path slot.
       const queryLang = state.location.search?.lang;
-      return isLanguageKey(queryLang) ? queryLang : DEFAULT_LANGUAGE;
+      if (isLanguageKey(queryLang)) {
+        writeStoredLanguage(queryLang);
+        return queryLang;
+      }
+      // 3. Fall back to whatever the user last picked anywhere on the
+      //    site, so chrome on /identity, /leaderboard etc. stays in
+      //    their preferred language across navigations.
+      const stored = readStoredLanguage();
+      if (stored) return stored;
+      return DEFAULT_LANGUAGE;
     },
   });
 }

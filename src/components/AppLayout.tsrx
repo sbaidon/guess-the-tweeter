@@ -60,18 +60,24 @@ export component AppLayout({ children }) {
           </Link>
         </nav>
       </div>
-      <div class="language-rail page-shell">
-        for (const language of LANGUAGES) {
-          <Link
-            key={language.id}
-            activeProps={{ "data-active": "true" }}
-            inactiveProps={{ "data-active": "false" }}
-            className="language-rail__link"
-            {...languageLinkProps(currentPath, language.id)}
-          >
-            {language.nativeName}
-          </Link>
-        }
+      <div class="language-rail page-shell" role="group" aria-label={copy.nav.gameLanguage}>
+        <span class="language-rail__label">{copy.nav.gameLanguage}</span>
+        <div class="language-rail__pills">
+          for (const language of LANGUAGES) {
+            <Link
+              key={language.id}
+              activeProps={{ "data-active": "true" }}
+              inactiveProps={{ "data-active": "false" }}
+              className="language-rail__pill"
+              data-current={language.id === currentLanguage ? "true" : "false"}
+              aria-current={language.id === currentLanguage ? "true" : undefined}
+              {...languageLinkProps(currentPath, language.id)}
+            >
+              <span class="language-rail__pill-name">{language.nativeName}</span>
+              <span class="language-rail__pill-code">{language.id.toUpperCase()}</span>
+            </Link>
+          }
+        </div>
       </div>
     </header>
 

@@ -98,32 +98,74 @@ a {
 
 .language-rail {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 0 0 8px;
-  scrollbar-width: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0 10px;
 }
 
-.language-rail::-webkit-scrollbar {
-  display: none;
-}
-
-.language-rail__link {
-  flex: 0 0 auto;
-  padding: 7px 10px;
-  border: 1px solid var(--rule);
+.language-rail__label {
   color: var(--muted);
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   line-height: 1.2;
   text-transform: uppercase;
 }
 
-.language-rail__link[data-active="true"] {
+.language-rail__pills {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0;
+  scrollbar-width: none;
+}
+
+.language-rail__pills::-webkit-scrollbar {
+  display: none;
+}
+
+.language-rail__pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.language-rail__pill:hover {
+  border-color: var(--ink);
+}
+
+.language-rail__pill-name {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.language-rail__pill-code {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.language-rail__pill[data-current="true"] {
+  background: var(--red);
   border-color: var(--red);
-  color: var(--red);
+  color: #fff;
+}
+
+.language-rail__pill[data-current="true"] .language-rail__pill-code {
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .app-main .page-shell {

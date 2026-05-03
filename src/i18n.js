@@ -7,6 +7,7 @@ export const UI_COPY = {
       archive: "Archive",
       leaderboard: "Leaderboard",
       identity: "Identity",
+      gameLanguage: "Game language",
     },
     home: {
       eyebrow: "Hourly parody game",
@@ -137,6 +138,7 @@ export const UI_COPY = {
       archive: "Archivo",
       leaderboard: "Ranking",
       identity: "Identidad",
+      gameLanguage: "Idioma del juego",
     },
     home: {
       eyebrow: "Juego de parodia por hora",
@@ -245,6 +247,7 @@ export const UI_COPY = {
       archive: "Archives",
       leaderboard: "Classement",
       identity: "Identité",
+      gameLanguage: "Langue du jeu",
     },
     home: {
       eyebrow: "Jeu parodique horaire",
@@ -353,6 +356,7 @@ export const UI_COPY = {
       archive: "Arquivo",
       leaderboard: "Ranking",
       identity: "Identidade",
+      gameLanguage: "Idioma do jogo",
     },
     home: {
       eyebrow: "Jogo de paródia por hora",
@@ -461,6 +465,7 @@ export const UI_COPY = {
       archive: "Archiv",
       leaderboard: "Rangliste",
       identity: "Identität",
+      gameLanguage: "Spielsprache",
     },
     home: {
       eyebrow: "Stündliches Parodiespiel",
