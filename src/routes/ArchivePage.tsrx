@@ -3,6 +3,7 @@ import { AuthorAvatar } from "../components/AuthorAvatar.tsrx";
 import { CATEGORY_META, DEFAULT_LANGUAGE, LANGUAGES_BY_ID } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
 import { fetchRoundHistory } from "../liveApi";
+import { useUiLanguage } from "../router";
 
 function formatRoundTime(value, language) {
   return new Intl.DateTimeFormat(getLocale(language), {
@@ -14,8 +15,12 @@ function formatRoundTime(value, language) {
 }
 
 export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
+  // `language` (the prop) is the GAME language (URL path param) — drives
+  // which past rounds we fetch. UI chrome uses the user's separate
+  // interface preference.
+  const uiLanguage = useUiLanguage();
   const languageMeta = LANGUAGES_BY_ID.get(language);
-  const copy = getCopy(language);
+  const copy = getCopy(uiLanguage);
   const { data, isError } = useQuery({
     queryKey: ["roundHistory", language],
     queryFn: ({ signal }) => fetchRoundHistory(18, language, signal),
@@ -48,7 +53,7 @@ export component ArchivePage({ language = DEFAULT_LANGUAGE }) {
 
           <article key={round.id} class="archive-round">
             <div class="archive-round__meta">
-              <span>{formatRoundTime(round.startsAt, language)}</span>
+              <span>{formatRoundTime(round.startsAt, uiLanguage)}</span>
               <span>{`${copy.categories[round.post.category] ?? meta.name} · ${round.post.languageNativeName}`}</span>
             </div>
             <p>{round.post.text}</p>

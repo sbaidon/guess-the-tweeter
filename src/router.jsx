@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import {
   Outlet,
   createRootRoute,
@@ -15,50 +16,121 @@ import { IdentityPage } from "./routes/IdentityPage.tsrx";
 import { LeaderboardPage } from "./routes/LeaderboardPage.tsrx";
 import { PlayPage } from "./routes/PlayPage.tsrx";
 
-const LANGUAGE_STORAGE_KEY = "guess-the-tweeter-language";
+// Two distinct languages are now tracked:
+//
+//   GAME_LANGUAGE_KEY → the language of the tweets / round being played.
+//                       Driven by the URL path on /play/:lang and /archive/:lang
+//                       (and `?lang=` on legacy fallbacks). Cached so unrelated
+//                       routes can preview round data without a path slot.
+//
+//   UI_LANGUAGE_KEY  → the language of the chrome (nav, copy, Intl). Decoupled
+//                       from any URL — the user picks it once with the
+//                       interface chip and it sticks across navigations.
+const GAME_LANGUAGE_KEY = "guess-the-tweeter-language";
+const UI_LANGUAGE_KEY = "guess-the-tweeter-ui-language";
 
-function readStoredLanguage() {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return isLanguageKey(stored) ? stored : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredLanguage(language) {
-  if (typeof window === "undefined") return;
-  try {
-    if (isLanguageKey(language)) {
-      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+function makeLanguageStore(key) {
+  function read() {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = window.localStorage.getItem(key);
+      return isLanguageKey(stored) ? stored : null;
+    } catch {
+      return null;
     }
-  } catch {
-    // Storage may be blocked (private mode, quota); fail silently —
-    // language still works for the rest of this session via the URL.
   }
+  function write(language) {
+    if (typeof window === "undefined") return;
+    try {
+      if (isLanguageKey(language)) {
+        window.localStorage.setItem(key, language);
+      }
+    } catch {
+      // Storage may be blocked (private mode, quota); fail silently —
+      // language still works for the rest of this session.
+    }
+  }
+  return { read, write };
 }
 
-export function useCurrentLanguage() {
+const gameStore = makeLanguageStore(GAME_LANGUAGE_KEY);
+const uiStore = makeLanguageStore(UI_LANGUAGE_KEY);
+
+// localStorage is not natively reactive, so we wire a tiny pub/sub on top
+// and feed it through React's useSyncExternalStore. setUiLanguage emits
+// locally; cross-tab changes piggyback on the native `storage` event.
+const uiSubscribers = new Set();
+
+function subscribeUiLanguage(callback) {
+  uiSubscribers.add(callback);
+  function onStorage(event) {
+    if (event.key === UI_LANGUAGE_KEY) callback();
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", onStorage);
+  }
+  return () => {
+    uiSubscribers.delete(callback);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", onStorage);
+    }
+  };
+}
+
+function emitUiLanguageChange() {
+  for (const subscriber of uiSubscribers) subscriber();
+}
+
+function detectBrowserLanguage() {
+  if (typeof navigator === "undefined") return null;
+  const candidates = [];
+  if (Array.isArray(navigator.languages)) candidates.push(...navigator.languages);
+  if (typeof navigator.language === "string") candidates.push(navigator.language);
+  for (const candidate of candidates) {
+    const prefix = String(candidate).slice(0, 2).toLowerCase();
+    if (isLanguageKey(prefix)) return prefix;
+  }
+  return null;
+}
+
+function getUiLanguageSnapshot() {
+  const stored = uiStore.read();
+  if (stored) return stored;
+  const browser = detectBrowserLanguage();
+  if (browser) return browser;
+  return DEFAULT_LANGUAGE;
+}
+
+function getServerSnapshot() {
+  return DEFAULT_LANGUAGE;
+}
+
+export function useUiLanguage() {
+  return useSyncExternalStore(subscribeUiLanguage, getUiLanguageSnapshot, getServerSnapshot);
+}
+
+export function setUiLanguage(language) {
+  if (!isLanguageKey(language)) return;
+  uiStore.write(language);
+  emitUiLanguageChange();
+}
+
+// Game language: URL-derived, cached so home/identity/leaderboard can still
+// pick a sensible language for round previews when no path param exists.
+export function useGameLanguage() {
   return useRouterState({
     select: (state) => {
-      // 1. URL path param wins (`/play/:lang`, `/archive/:lang`) so deep
-      //    links honor exactly the language the URL says.
       const [, , pathLanguage] = state.location.pathname.split("/");
       if (LANGUAGES_BY_ID.has(pathLanguage)) {
-        writeStoredLanguage(pathLanguage);
+        gameStore.write(pathLanguage);
         return pathLanguage;
       }
-      // 2. Search param next (`?lang=`) for routes without a path slot.
       const queryLang = state.location.search?.lang;
       if (isLanguageKey(queryLang)) {
-        writeStoredLanguage(queryLang);
+        gameStore.write(queryLang);
         return queryLang;
       }
-      // 3. Fall back to whatever the user last picked anywhere on the
-      //    site, so chrome on /identity, /leaderboard etc. stays in
-      //    their preferred language across navigations.
-      const stored = readStoredLanguage();
+      const stored = gameStore.read();
       if (stored) return stored;
       return DEFAULT_LANGUAGE;
     },

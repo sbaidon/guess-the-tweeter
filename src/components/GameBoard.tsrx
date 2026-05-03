@@ -4,6 +4,7 @@ import { CATEGORY_META } from "../gameData";
 import { getCopy, getLocale } from "../i18n";
 import { getIdentity, signSubmit } from "../identity";
 import { createRoundSocket, fetchCurrentRound, getClientId, submitRoundPick } from "../liveApi";
+import { useUiLanguage } from "../router";
 import { AuthorAvatar } from "./AuthorAvatar.tsrx";
 
 function formatClock(value, language) {
@@ -177,7 +178,11 @@ export component GameBoard({ category, language = "en" }) {
   const [handleGuess, setHandleGuess] = useState("");
   const [now, setNow] = useState(Date.now());
   const queryClient = useQueryClient();
-  const copy = getCopy(language);
+  // `language` (the prop) is the GAME language — drives the round/post pool
+  // and stays in sync with the URL on /play/:lang. The UI chrome (copy +
+  // Intl) follows the user's separate interface preference.
+  const uiLanguage = useUiLanguage();
+  const copy = getCopy(uiLanguage);
   const { data: identity = null } = useQuery({ queryKey: ["identity"], queryFn: getIdentity });
   const queryKey = ["round", category, language, clientId, identity];
 
@@ -211,7 +216,7 @@ export component GameBoard({ category, language = "en" }) {
   const categoryName = round
     ? copy.categories[round.post.category] ?? postMeta.name
     : copy.categories.all;
-  const phaseCopy = getPhaseCopy(round, now, language, copy);
+  const phaseCopy = getPhaseCopy(round, now, uiLanguage, copy);
   const player = round?.player ?? null;
   const submission = round?.submission ?? null;
   const placedAuthor = submission?.author ?? null;
@@ -453,8 +458,8 @@ export component GameBoard({ category, language = "en" }) {
             <strong>{hasAuthorPick ? selectedAuthorGuess : copy.game.noMorePicks}</strong>
             <span>
               {hasAuthorPick && isOpen
-                ? copy.game.canChangeUntil(formatClock(round.locksAt, language))
-                : copy.game.revealAt(formatClock(round.revealsAt, language))}
+                ? copy.game.canChangeUntil(formatClock(round.locksAt, uiLanguage))
+                : copy.game.revealAt(formatClock(round.revealsAt, uiLanguage))}
             </span>
             if (placedStake > 0) {
               <span class="payout-line" data-tone="push">{`Staked ${placedStake}`}</span>
@@ -499,7 +504,7 @@ export component GameBoard({ category, language = "en" }) {
               } else {
                 <span class="notice__label">{hasModelPick ? copy.game.modelPick : copy.game.roundLocked}</span>
                 <strong>{hasModelPick ? (selectedModel?.name ?? copy.game.pickLocked) : copy.game.noMorePicks}</strong>
-                <span>{copy.game.revealAt(formatClock(round.revealsAt, language))}</span>
+                <span>{copy.game.revealAt(formatClock(round.revealsAt, uiLanguage))}</span>
               }
             </div>
           }

@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { getCopy } from "../i18n";
 import { getIdentity } from "../identity";
 import { fetchLeaderboard, getClientId } from "../liveApi";
-import { useCurrentLanguage } from "../router";
+import { useUiLanguage } from "../router";
 
 export component LeaderboardPage() {
   const [clientId] = useState(getClientId);
   const [scope, setScope] = useState("all");
-  const language = useCurrentLanguage();
+  const language = useUiLanguage();
   const copy = getCopy(language);
   const { data: identity = null } = useQuery({ queryKey: ["identity"], queryFn: getIdentity });
   const { data, isError } = useQuery({

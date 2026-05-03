@@ -1,11 +1,15 @@
 import { GameBoard } from "../components/GameBoard.tsrx";
 import { CATEGORY_META, DEFAULT_LANGUAGE, LANGUAGES_BY_ID } from "../gameData";
 import { getCopy } from "../i18n";
+import { useUiLanguage } from "../router";
 
 export component PlayPage({ language = DEFAULT_LANGUAGE }) {
+  // `language` (the prop) is the GAME language from the URL; chrome
+  // reads the user's interface preference instead.
+  const uiLanguage = useUiLanguage();
   const meta = CATEGORY_META.all;
   const languageMeta = LANGUAGES_BY_ID.get(language);
-  const copy = getCopy(language);
+  const copy = getCopy(uiLanguage);
 
   <div
     class="play-shell"

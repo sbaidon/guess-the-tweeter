@@ -11,10 +11,10 @@ import {
   signClaim,
 } from "../identity";
 import { claimIdentity, fetchMe, getClientId } from "../liveApi";
-import { useCurrentLanguage } from "../router";
+import { useUiLanguage } from "../router";
 
 export component IdentityPage() {
-  const language = useCurrentLanguage();
+  const language = useUiLanguage();
   const copy = getCopy(language);
   const queryClient = useQueryClient();
   const [identity, setIdentity] = useState(null);
