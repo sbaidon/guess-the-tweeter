@@ -236,13 +236,15 @@ export component GameBoard({ category, language = "en" }) {
     isRevealed && selectedAuthorId && selectedAuthorId === round.answer.author.id;
   const modelCorrect =
     isRevealed && selectedModelId && selectedModelId === round.answer.model.id;
+  // Stamps used to flash on every state (placed / locked / paid / void). That
+  // turned the corner ribbon into ambient noise — a first-time player saw a
+  // red stamp and worried something was wrong. Limit it to the reveal moment,
+  // where it actually means win/loss.
   const stampLabel = isRevealed
     ? authorCorrect
       ? copy.game.paidOut
       : copy.game.voided
-    : hasAuthorPick || round?.status === "locked"
-      ? copy.game.placed
-      : "";
+    : "";
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
@@ -309,10 +311,6 @@ export component GameBoard({ category, language = "en" }) {
         if (player) {
           <span class="game-meta__chip" aria-label="balance">{`BAL ${player.points}`}</span>
         }
-        if (round) {
-          <span class="game-meta__chip">{copy.game.filedUnder(categoryName, round.post.languageNativeName)}</span>
-          <span class="game-meta__chip game-meta__chip--accent">{`${round.contest?.roundNumber ?? "?"}/${round.contest?.totalRounds ?? "?"}`}</span>
-        }
       </div>
 
       <div class="game-clock" data-phase={round?.status ?? "loading"}>
@@ -320,6 +318,10 @@ export component GameBoard({ category, language = "en" }) {
         <strong class="game-clock__value">{phaseCopy.value}</strong>
       </div>
     </header>
+
+    if (round) {
+      <p class="game-howto">{copy.game.handleHelp}</p>
+    }
 
     if (error) {
       <div class="notice notice--bad">{error}</div>

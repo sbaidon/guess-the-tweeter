@@ -543,6 +543,19 @@ a {
   background: transparent;
 }
 
+/* Single-line "what am I doing" cue that sits between the header chrome
+   and the post card. Big enough to register, small enough not to compete
+   with the post itself. */
+.game-howto {
+  margin: 4px 0 14px;
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  text-align: left;
+}
+
 .post-card__foot {
   display: flex;
   flex-wrap: wrap;

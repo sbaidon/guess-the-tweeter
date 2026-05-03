@@ -20,6 +20,7 @@ import {
   getAuthorsForMode,
   getPostsForCategory,
 } from "../src/gameData.js";
+import { ADJECTIVES, NOUNS } from "./usernameWords.js";
 
 type CategoryKey = "all" | "tech" | "politics" | "sports" | "celebrities";
 type LanguageKey = string;
@@ -95,6 +96,7 @@ type PlayerRow = {
   points: number;
   last_topup_at: number;
   created_at: number;
+  display_name: string;
 };
 
 type GeneratedPostRow = {
@@ -181,7 +183,7 @@ type RoundBase = {
     submissions: number;
     connected: number;
   };
-  player?: { points: number };
+  player?: { points: number; displayName: string };
   contest: {
     startsAt: string;
     endsAt: string;
@@ -361,7 +363,8 @@ db.exec(`
     identity TEXT PRIMARY KEY,
     points INTEGER NOT NULL DEFAULT 100,
     last_topup_at INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    display_name TEXT NOT NULL DEFAULT ''
   );
 `);
 
@@ -369,6 +372,7 @@ ensureGeneratedPostsLanguageColumn();
 ensureSubmissionAuthorGuessColumn();
 ensureSubmissionStakeColumns();
 ensureSubmissionCounters();
+ensurePlayersDisplayNameColumn();
 
 const statements = {
   getRound: db.prepare("SELECT * FROM rounds WHERE id = ?"),
@@ -438,11 +442,17 @@ const statements = {
   getGeneratedPost: db.prepare("SELECT * FROM generated_posts WHERE id = ? AND status = 'approved'"),
   getGeneratedPosts: db.prepare("SELECT * FROM generated_posts WHERE status = 'approved' ORDER BY created_at ASC"),
   getPlayer: db.prepare<PlayerRow, [string]>("SELECT * FROM players WHERE identity = ?"),
+  getPlayerByDisplayName: db.prepare<PlayerRow, [string]>(
+    "SELECT * FROM players WHERE display_name = ?",
+  ),
   insertPlayer: db.prepare(`
-    INSERT INTO players (identity, points, last_topup_at, created_at)
-    VALUES (?, ?, 0, ?)
+    INSERT INTO players (identity, points, last_topup_at, created_at, display_name)
+    VALUES (?, ?, 0, ?, ?)
     ON CONFLICT(identity) DO NOTHING
   `),
+  setPlayerDisplayName: db.prepare(
+    "UPDATE players SET display_name = ? WHERE identity = ?",
+  ),
   setPlayerPoints: db.prepare(
     "UPDATE players SET points = ?, last_topup_at = ? WHERE identity = ?",
   ),
@@ -462,8 +472,11 @@ const statements = {
   sumOpenStakes: db.prepare<{ total: number }, [string]>(
     "SELECT COALESCE(SUM(stake), 0) AS total FROM submissions WHERE client_id = ? AND settled_at IS NULL",
   ),
-  getTopPlayers: db.prepare<{ identity: string; points: number; settled_count: number }, [number]>(`
-    SELECT p.identity, p.points,
+  getTopPlayers: db.prepare<
+    { identity: string; points: number; settled_count: number; display_name: string },
+    [number]
+  >(`
+    SELECT p.identity, p.points, p.display_name,
       (SELECT COUNT(*) FROM submissions s
         WHERE s.settled_at IS NOT NULL
           AND (s.identity = p.identity
@@ -472,8 +485,11 @@ const statements = {
     ORDER BY p.points DESC, p.created_at ASC
     LIMIT ?
   `),
-  getTopClaimedPlayers: db.prepare<{ identity: string; points: number; settled_count: number }, [number]>(`
-    SELECT p.identity, p.points,
+  getTopClaimedPlayers: db.prepare<
+    { identity: string; points: number; settled_count: number; display_name: string },
+    [number]
+  >(`
+    SELECT p.identity, p.points, p.display_name,
       (SELECT COUNT(*) FROM submissions s
         WHERE s.settled_at IS NOT NULL AND s.identity = p.identity) AS settled_count
     FROM players p
@@ -973,7 +989,11 @@ function publicRound(round: RoundRow, clientId?: string | null, identityOverride
 
   if (clientId) {
     const identity = identityOverride ?? identityFor(clientId);
-    base.player = { points: ensurePlayer(identity).points };
+    const player = ensurePlayer(identity);
+    base.player = {
+      points: player.points,
+      displayName: player.display_name || publicPlayerTag(identity),
+    };
   }
 
   if (status !== "revealed") {
@@ -1093,7 +1113,9 @@ const claimPlayer = db.transaction((pkIdentity: string, fromClientId: string | u
     const fromUuid = identityFor(fromClientId);
     const fromPlayer = statements.getPlayer.get(fromUuid);
     if (fromPlayer) {
-      statements.insertPlayer.run(pkIdentity, fromPlayer.points, now);
+      // Carry the anonymous player's name forward when they claim, so the
+      // leaderboard rank doesn't visibly rename mid-session.
+      statements.insertPlayer.run(pkIdentity, fromPlayer.points, now, fromPlayer.display_name);
       statements.deletePlayer.run(fromUuid);
       db.prepare("UPDATE submissions SET identity = ? WHERE client_id = ? AND identity IS NULL").run(
         pkIdentity,
@@ -1104,7 +1126,7 @@ const claimPlayer = db.transaction((pkIdentity: string, fromClientId: string | u
       return created;
     }
   }
-  statements.insertPlayer.run(pkIdentity, STARTING_POINTS, now);
+  statements.insertPlayer.run(pkIdentity, STARTING_POINTS, now, generateDisplayName());
   const created = statements.getPlayer.get(pkIdentity);
   if (!created) throw new Error("Failed to create claimed player");
   return created;
@@ -1123,10 +1145,28 @@ function ensurePlayer(identity: string): PlayerRow {
     statements.setPlayerPoints.run(TOPUP_AMOUNT, now, identity);
     return { ...existing, points: TOPUP_AMOUNT, last_topup_at: now };
   }
-  statements.insertPlayer.run(identity, STARTING_POINTS, now);
+  statements.insertPlayer.run(identity, STARTING_POINTS, now, generateDisplayName());
   const created = statements.getPlayer.get(identity);
   if (!created) throw new Error(`Player insert failed for ${identity}`);
   return created;
+}
+
+function pick<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)] as T;
+}
+
+// Generates a display name like `brave-otter-284` and retries on the very
+// rare collision (~1 in 22.5M for the default pools). Falls back to a longer
+// random suffix if the collision retries somehow exhaust.
+function generateDisplayName(): string {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = `${pick(ADJECTIVES)}-${pick(NOUNS)}-${Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, "0")}`;
+    const taken = statements.getPlayerByDisplayName.get(candidate);
+    if (!taken) return candidate;
+  }
+  return `${pick(ADJECTIVES)}-${pick(NOUNS)}-${crypto.randomBytes(3).toString("hex")}`;
 }
 
 function computePayout(submission: SubmissionRow, post: PlayablePost, correctHandle: string): number {
@@ -1212,6 +1252,43 @@ function ensureSubmissionAuthorGuessColumn(): void {
 
     if (author) {
       updateGuessText.run(author.handle, row.round_id, row.client_id);
+    }
+  }
+}
+
+function ensurePlayersDisplayNameColumn(): void {
+  const columns = db.prepare("PRAGMA table_info(players)").all() as TableInfoRow[];
+  const names = new Set(columns.map((column) => column.name));
+
+  if (!names.has("display_name")) {
+    db.exec(`ALTER TABLE players ADD COLUMN display_name TEXT NOT NULL DEFAULT ''`);
+  }
+
+  // Ensure uniqueness so concurrent inserts can't collide on the same name.
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS players_display_name_unique
+     ON players(display_name) WHERE display_name <> ''`,
+  );
+
+  // Backfill any rows missing a name (existing players from before this
+  // migration). Done one row at a time so the unique check picks up names
+  // generated earlier in the same loop. Cannot use the shared statements map
+  // here because this runs before that map is initialized.
+  const empty = db
+    .prepare("SELECT identity FROM players WHERE display_name IS NULL OR display_name = ''")
+    .all() as Array<{ identity: string }>;
+  if (empty.length) {
+    const update = db.prepare("UPDATE players SET display_name = ? WHERE identity = ?");
+    const isTaken = db.prepare("SELECT 1 FROM players WHERE display_name = ?");
+    const localGenerate = (): string => {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const candidate = `${ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]}-${NOUNS[Math.floor(Math.random() * NOUNS.length)]}-${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
+        if (!isTaken.get(candidate)) return candidate;
+      }
+      return `${ADJECTIVES[0]}-${NOUNS[0]}-${crypto.randomBytes(3).toString("hex")}`;
+    };
+    for (const row of empty) {
+      update.run(localGenerate(), row.identity);
     }
   }
 }
@@ -1417,6 +1494,27 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     return json(response, 200, { rounds: publicRounds });
   }
 
+  if (request.method === "GET" && url.pathname === "/api/players/me") {
+    const clientId = url.searchParams.get("clientId");
+    const identityParam = url.searchParams.get("identity");
+    const identity =
+      identityParam && identityParam.startsWith("pk:")
+        ? identityParam
+        : clientId
+          ? identityFor(clientId)
+          : null;
+    if (!identity) return badRequest(response, "Missing clientId or identity.");
+    const player = ensurePlayer(identity);
+    const tag = player.display_name || publicPlayerTag(identity);
+    return json(response, 200, {
+      identity,
+      tag,
+      displayName: tag,
+      points: player.points,
+      claimed: identity.startsWith("pk:"),
+    });
+  }
+
   if (request.method === "POST" && url.pathname === "/api/players/claim") {
     if (!isJsonRequest(request)) return unsupportedMediaType(response);
     if (isBodyTooLarge(request)) return payloadTooLarge(response);
@@ -1439,9 +1537,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
     const identity = pubkeyIdentity(pubkey);
     const player = claimPlayer(identity, fromClientId);
     logInfo("player_claimed", { identity: publicPlayerTag(identity), fromClientId: fromClientId ?? null });
+    const tag = player.display_name || publicPlayerTag(identity);
     return json(response, 200, {
       identity,
-      tag: publicPlayerTag(identity),
+      tag,
+      displayName: tag,
       points: player.points,
     });
   }
@@ -1466,7 +1566,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
           : null;
     const players = rows.map((row, index) => ({
       rank: index + 1,
-      tag: publicPlayerTag(row.identity),
+      tag: row.display_name || publicPlayerTag(row.identity),
       points: row.points,
       rounds: row.settled_count ?? 0,
       claimed: row.identity.startsWith("pk:"),

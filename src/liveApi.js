@@ -43,6 +43,17 @@ export async function submitRoundPick(roundId, payload) {
   return response.json();
 }
 
+export async function fetchMe({ clientId, identity, signal } = {}) {
+  const params = new URLSearchParams();
+  if (clientId) params.set("clientId", clientId);
+  if (identity) params.set("identity", identity);
+  const response = await fetch(`/api/players/me?${params.toString()}`, { signal });
+  if (!response.ok) {
+    throw new Error("Could not load player.");
+  }
+  return response.json();
+}
+
 export async function claimIdentity({ pubkey, signature, nonce, timestamp, fromClientId }) {
   const response = await fetch("/api/players/claim", {
     method: "POST",

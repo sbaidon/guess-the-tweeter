@@ -10,20 +10,15 @@ import {
   importRecoveryKey,
   signClaim,
 } from "../identity";
-import { claimIdentity, getClientId } from "../liveApi";
+import { claimIdentity, fetchMe, getClientId } from "../liveApi";
 import { useCurrentLanguage } from "../router";
-
-function shortIdentity(identity) {
-  if (!identity) return "";
-  const tail = identity.slice(-12);
-  return `pk:…${tail}`;
-}
 
 export component IdentityPage() {
   const language = useCurrentLanguage();
   const copy = getCopy(language);
   const queryClient = useQueryClient();
   const [identity, setIdentity] = useState(null);
+  const [displayName, setDisplayName] = useState("");
   const [recovery, setRecovery] = useState("");
   const [importValue, setImportValue] = useState("");
   const [pending, setPending] = useState(false);
@@ -31,13 +26,28 @@ export component IdentityPage() {
   const [info, setInfo] = useState("");
 
   useEffect(() => {
-    getIdentity().then(setIdentity).catch(() => {});
+    let cancelled = false;
+    (async () => {
+      const id = await getIdentity().catch(() => null);
+      if (cancelled) return;
+      setIdentity(id);
+      try {
+        const me = await fetchMe({ clientId: getClientId(), identity: id });
+        if (!cancelled) setDisplayName(me.displayName ?? "");
+      } catch {
+        if (!cancelled) setDisplayName("");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function syncWithServer() {
     const fromClientId = getClientId();
     const sig = await signClaim(fromClientId);
-    await claimIdentity({ ...sig, fromClientId });
+    const me = await claimIdentity({ ...sig, fromClientId });
+    setDisplayName(me.displayName ?? "");
   }
 
   function invalidate() {
@@ -137,7 +147,7 @@ export component IdentityPage() {
     } else {
       <div class="identity-summary">
         <p class="eyebrow">{copy.identity.youAre}</p>
-        <strong class="identity-summary__id">{shortIdentity(identity)}</strong>
+        <strong class="identity-summary__id">{displayName || "…"}</strong>
       </div>
 
       <div class="identity-actions">
