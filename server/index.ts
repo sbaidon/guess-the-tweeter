@@ -1114,9 +1114,12 @@ const claimPlayer = db.transaction((pkIdentity: string, fromClientId: string | u
     const fromPlayer = statements.getPlayer.get(fromUuid);
     if (fromPlayer) {
       // Carry the anonymous player's name forward when they claim, so the
-      // leaderboard rank doesn't visibly rename mid-session.
-      statements.insertPlayer.run(pkIdentity, fromPlayer.points, now, fromPlayer.display_name);
+      // leaderboard rank doesn't visibly rename mid-session. The anon row
+      // must go FIRST — display_name is unique, so we'd otherwise collide
+      // with the row we're about to delete.
+      const carriedName = fromPlayer.display_name || generateDisplayName();
       statements.deletePlayer.run(fromUuid);
+      statements.insertPlayer.run(pkIdentity, fromPlayer.points, now, carriedName);
       db.prepare("UPDATE submissions SET identity = ? WHERE client_id = ? AND identity IS NULL").run(
         pkIdentity,
         fromClientId,
